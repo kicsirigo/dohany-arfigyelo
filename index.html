@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="hu" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Magyar Dohánytermék Árfigyelő — Hivatalos SZTFH kiskereskedelmi dohánytermék eladási árak kereshető, szűrhető adatbázisa." />
+  <title>Magyar Dohánytermék Árfigyelő — Hivatalos SZTFH Árak</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231E140F'/%3E%3Ccircle cx='32' cy='32' r='24' fill='none' stroke='%23D4AF37' stroke-width='4'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='sans-serif' font-weight='700' font-size='22' fill='%23D4AF37'%3E18%2B%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap&subset=latin-ext" />
+  <script>
+    (function () {
+      try {
+        var savedTheme = localStorage.getItem('dohany_theme');
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+          document.documentElement.dataset.theme = savedTheme;
+        } else {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      } catch (_) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header id="site-header" class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <span class="brand-badge" aria-hidden="true">18+</span>
+        <div class="brand-text">
+          <h1 class="site-title">Magyar Dohánytermék Árfigyelő</h1>
+          <p class="site-subtitle">Hivatalos SZTFH kiskereskedelmi eladási árak</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div id="status-bar" class="status-bar">
+          <span class="status-item">Frissítve: <strong id="meta-last-updated" class="meta-date">—</strong></span>
+          <span class="status-item">Összesen: <strong id="meta-total-count" class="meta-count">—</strong></span>
+        </div>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Téma váltása" aria-pressed="false">
+          <span class="theme-icon" aria-hidden="true">☀</span>
+          <span class="theme-label">Világos mód</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <section id="search-sticky-bar" class="search-sticky-bar" aria-label="Kereső">
+    <div class="container">
+      <div class="search-box">
+        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <label for="search-input" class="sr-only">Keresés termékre vagy kategóriára</label>
+        <input
+          type="search"
+          id="search-input"
+          class="search-input"
+          placeholder="Keresés pontos névre, márkára vagy típusra... pl. Marlboro Red, TEREA Amber"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="button" id="search-clear" class="search-clear" aria-label="Keresés törlése" hidden>&times;</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="filters-section" class="filters-section container" aria-label="Szűrők és rendezés">
+    <div id="category-chips" class="category-chips" role="tablist" aria-label="Kategóriák">
+      <button type="button" class="chip is-active" data-category="all" role="tab" aria-selected="true">Összes</button>
+    </div>
+
+    <div class="toolbar-row">
+      <div class="toolbar-filters">
+        <button type="button" id="favorites-toggle" class="toggle-pill toggle-favorites" aria-pressed="false">
+          <span aria-hidden="true">★</span> Kedvencek <span id="favorites-count" class="pill-count">0</span>
+        </button>
+        <button type="button" id="filter-changed" class="toggle-pill" aria-pressed="false">
+          Csak árváltozások <span id="changed-count" class="pill-count">0</span>
+        </button>
+      </div>
+
+      <div class="toolbar-actions">
+        <div id="result-counter" class="result-counter" aria-live="polite">0 / 0 termék</div>
+        <label for="sort-select" class="sr-only">Rendezés</label>
+        <select id="sort-select" class="sort-select" aria-label="Rendezés">
+          <option value="name-asc">Név (A–Z)</option>
+          <option value="name-desc">Név (Z–A)</option>
+          <option value="price-asc">Ár (növekvő)</option>
+          <option value="price-desc">Ár (csökkenő)</option>
+          <option value="changed-desc">Legutóbb változott</option>
+        </select>
+
+        <div id="view-toggle" class="view-toggle" role="group" aria-label="Nézet">
+          <button type="button" id="view-grid-btn" class="view-btn is-active" data-view="grid" aria-pressed="true">Kártyák</button>
+          <button type="button" id="view-table-btn" class="view-btn" data-view="table" aria-pressed="false">Táblázat</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main id="main-content" class="main-content container">
+    <div id="loading-state" class="state-panel state-loading" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Hivatalos SZTFH árlista betöltése...</p>
+    </div>
+
+    <div id="error-state" class="state-panel state-error" role="alert" hidden>
+      <p id="error-message">Nem sikerült betölteni a hivatalos árlistát. Kérjük, próbálja újra.</p>
+      <button type="button" id="retry-btn" class="btn-primary">Újrapróbálkozás</button>
+    </div>
+
+    <div id="empty-state" class="state-panel state-empty" hidden>
+      <p id="empty-message">Nincs a keresési vagy szűrési feltételeknek megfelelő termék.</p>
+      <button type="button" id="reset-filters-btn" class="btn-primary">Szűrők és keresés törlése</button>
+    </div>
+
+    <section id="results-region" class="results-region" data-view="grid" aria-label="Terméklista">
+      <div id="products-grid" class="products-grid" hidden></div>
+
+      <div id="products-table-wrap" class="products-table-wrap" hidden>
+        <table class="products-table">
+          <thead>
+            <tr>
+              <th scope="col" class="col-fav">Kedvenc</th>
+              <th scope="col" class="col-name">Termék megnevezése</th>
+              <th scope="col" class="col-cat">Kategória</th>
+              <th scope="col" class="col-unit">Kiszerelés</th>
+              <th scope="col" class="col-price">Eladási ár</th>
+              <th scope="col" class="col-diff">Változás</th>
+              <th scope="col" class="col-valid">Érvényes</th>
+            </tr>
+          </thead>
+          <tbody id="products-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div id="pagination-controls" class="pagination-controls" hidden>
+      <p id="pagination-info" class="pagination-info"></p>
+      <button type="button" id="load-more-btn" class="btn-secondary">Továbbiak betöltése</button>
+    </div>
+  </main>
+
+  <footer id="site-footer" class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-top">
+        <a id="sztfh-source-link" class="footer-link" href="https://sztfh.hu/tevekenysegek/dohanyugyi-felugyelet/arak-kozzetetele/" target="_blank" rel="noopener noreferrer">
+          Hivatalos SZTFH adatforrás megnyitása ↗
+        </a>
+        <div class="footer-meta">
+          <span class="footer-meta-item">Utolsó frissítés: <strong id="footer-last-updated" class="meta-date">—</strong></span>
+          <span class="footer-meta-item">Forrásfájl: <strong id="footer-source-file">—</strong></span>
+          <span class="footer-meta-item">Termékszám: <strong id="footer-total-count" class="meta-count">—</strong></span>
+        </div>
+      </div>
+      <p class="legal-disclaimer">
+        Jogi nyilatkozat: Az oldalon megjelenő árak tájékoztató jellegűek; minden esetben a Szabályozott Tevékenységek Felügyeleti Hatósága (SZTFH) által hivatalosan közzétett kiskereskedelmi eladási árlista az irányadó. A dohánytermékek kiskereskedelmi értékesítése kizárólag 18 éven felüliek részére, Nemzeti Dohányboltokban történik.
+      </p>
+    </div>
+  </footer>
+</body>
+</html>
