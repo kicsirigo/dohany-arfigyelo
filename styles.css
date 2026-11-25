@@ -894,15 +894,15 @@ mark,
 }
 
 .products-table .col-fav {
-  width: 68px;
+  width: 90px;
 }
 
 .products-table .col-name {
-  width: 36%;
+  width: auto;
 }
 
 .products-table .col-cat {
-  width: 18%;
+  width: 17%;
 }
 
 .products-table .col-unit {
