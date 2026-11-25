@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -518,9 +519,13 @@ def test_t4_scenario6_full_scraper_to_served_ui_pipeline(
     _load_catalog(desktop_page, app_base_url, route_prices_json, data2)
     assert parse_result_counter(desktop_page) == (4, 4)
 
-    last_upd_date = data2["meta"]["last_updated"][:10]
-    y, m, d = last_upd_date.split("-")
-    assert re.search(rf"{y}[-.\s]+{m}[-.\s]+{d}", desktop_page.locator("body").inner_text())
+    local_dt = datetime.fromisoformat(
+        data2["meta"]["last_updated"].replace("Z", "+00:00")
+    ).astimezone()
+    assert re.search(
+        rf"{local_dt.year:04d}[-.\s]+{local_dt.month:02d}[-.\s]+{local_dt.day:02d}",
+        desktop_page.locator("body").inner_text(),
+    )
 
     expect(
         _visible_product_container(desktop_page, "Marlboro Red 20 szálas").get_by_text(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import re
 import time
+from datetime import datetime
 from typing import Any, Literal
 
 import pytest
@@ -1042,10 +1043,16 @@ def test_t1_f20_last_updated_and_total_count_displayed(
     desktop_page: Page, app_base_url: str, route_prices_json: Any
 ) -> None:
     payload = copy.deepcopy(_REALISTIC_22)
-    payload["meta"]["last_updated"] = "2026-11-25T22:00:00Z"
+    payload["meta"]["last_updated"] = "2026-11-25T12:00:00Z"
     _load_catalog(desktop_page, app_base_url, route_prices_json, payload)
     page_text = desktop_page.locator("body").inner_text()
-    assert re.search(r"2026[-.\s]+11[-.\s]+25", page_text), "Expected last_updated date rendered"
+    local_dt = datetime.fromisoformat(
+        payload["meta"]["last_updated"].replace("Z", "+00:00")
+    ).astimezone()
+    assert re.search(
+        rf"{local_dt.year:04d}[-.\s]+{local_dt.month:02d}[-.\s]+{local_dt.day:02d}",
+        page_text,
+    ), "Expected last_updated date rendered"
     assert "22" in page_text
 
 
