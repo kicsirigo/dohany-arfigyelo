@@ -46,13 +46,27 @@ def test_desktop_core_flows_and_new_features(static_server_url: str) -> None:
         assert page.locator(".product-card mark.search-mark").count() >= 1
         assert "Ft/g" in page.locator(".product-card .unit-price").first.inner_text()
 
-        # Open native <dialog> history modal & verify SVG chart + table
+        # Open native <dialog> history modal & verify focus (not on X), unclipped SVG chart + table
         page.locator(".product-card .history-btn").first.click()
         page.wait_for_selector("dialog#history-modal[open]")
         page.wait_for_selector(".history-chart-svg")
         assert page.locator("#history-table-body tr").count() >= 5
+        active_id = page.evaluate("document.activeElement && document.activeElement.id")
+        assert active_id != "history-modal-close", f"Close button should not grab focus: {active_id}"
+        wrap_box = page.locator(".history-chart-wrap").bounding_box()
+        svg_box = page.locator(".history-chart-svg").bounding_box()
+        assert wrap_box and svg_box and wrap_box["height"] >= svg_box["height"], f"Chart clipped: wrap={wrap_box}, svg={svg_box}"
         page.keyboard.press("Escape")
         assert page.locator("dialog#history-modal[open]").count() == 0
+
+        # Compact category chips + "Továbbiak" toggle
+        more_btn = page.locator("#toggle-more-cats")
+        assert more_btn.is_visible()
+        assert more_btn.get_attribute("aria-expanded") == "false"
+        initial_chip_count = page.locator("#category-chips .chip[data-category]").count()
+        more_btn.click()
+        assert page.locator("#toggle-more-cats").get_attribute("aria-expanded") == "true"
+        assert page.locator("#category-chips .chip[data-category]").count() > initial_chip_count
 
         # Quick brand chip + recent search + URL sync + unit price (Ft/szál)
         page.locator('.quick-chip[data-quick-query="TEREA"]').click()

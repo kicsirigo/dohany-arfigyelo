@@ -8,6 +8,25 @@
   const MAX_RECENT_SEARCHES = 5;
   const DEFAULT_CATEGORY = 'Egyéb';
   const VALID_SORTS = new Set(['name-asc', 'name-desc', 'price-asc', 'price-desc', 'changed-desc']);
+  const PRIMARY_CATEGORIES_LIMIT = 8;
+  const CATEGORY_SHORT_LABELS = {
+    'Finomra vágott fogyasztási dohány': 'Cigarettadohány',
+    'Egyéb fogyasztási dohány': 'Pipadohány / Egyéb',
+    'Egyéb nikotinos termékek (zárjegyes)': 'Nikotinpárna',
+    'Egyéb nikotinos termékek': 'Egyéb nikotinos',
+    'Elektromos cigaretta folyadék': 'E-liquid',
+    'Elektromos cigaretta folyadék nikotinmentes (zárjegyes)': 'E-liquid (0 mg)',
+    'Elektromos cigaretta folyadék nikotinos (zárjegyes)': 'E-liquid (nikotinos)',
+    'Hevítésre szánt dohánytermék (zárjegyes)': 'Hevítéses',
+    'Dohányzási célú gyógynövénytermék (zárjegyes)': 'Gyógynövényes',
+    'Rágódohány (zárjegyes)': 'Rágódohány (zárj.)',
+    'Dohányt tartalmazó kiegészítő': 'Kiegészítő',
+    'Tüsszentésre szolgáló dohánytermék (zárjegyes)': 'Tubák',
+  };
+
+  function getCategoryDisplayLabel(catName) {
+    return CATEGORY_SHORT_LABELS[catName] || catName;
+  }
 
   const ICONS = {
     sun: '<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>',
@@ -232,6 +251,7 @@
     footerSourceFile: document.getElementById('footer-source-file'),
     footerTotalCount: document.getElementById('footer-total-count'),
     historyModal: document.getElementById('history-modal'),
+    historyModalPanel: document.getElementById('history-modal-panel'),
     historyModalTitle: document.getElementById('history-modal-title'),
     historyModalSubtitle: document.getElementById('history-modal-subtitle'),
     historyModalClose: document.getElementById('history-modal-close'),
@@ -255,6 +275,7 @@
     category: 'all',
     onlyFavorites: false,
     onlyChanged: false,
+    showAllCategories: false,
     sortBy: 'name-asc',
     visibleCount: PAGE_SIZE,
     debounceTimer: null,
@@ -816,6 +837,9 @@
     dom.historyTableBody.textContent = '';
     if (!dom.historyModal.open) {
       dom.historyModal.showModal();
+      if (dom.historyModalPanel) {
+        dom.historyModalPanel.focus({ preventScroll: true });
+      }
     }
 
     const historyMap = await ensurePriceHistoryLoaded();
@@ -882,7 +906,9 @@
       `);
     }
     dom.historyTableBody.innerHTML = rowsHtml.join('');
-    dom.historyModalClose.focus();
+    if (dom.historyModalPanel) {
+      dom.historyModalPanel.focus({ preventScroll: true });
+    }
   }
 
   function closeHistoryModal() {
@@ -905,6 +931,16 @@
       return (b[1] - a[1]) || huCollator.compare(a[0], b[0]);
     });
 
+    const activeIdx = categories.findIndex(([catName]) => catName === state.category);
+    if (activeIdx >= PRIMARY_CATEGORIES_LIMIT) {
+      state.showAllCategories = true;
+    }
+
+    const visibleCats = state.showAllCategories
+      ? categories
+      : categories.slice(0, PRIMARY_CATEGORIES_LIMIT);
+    const hiddenCount = categories.length - visibleCats.length;
+
     const frag = document.createDocumentFragment();
 
     const allBtn = document.createElement('button');
@@ -916,16 +952,30 @@
     allBtn.innerHTML = `Összes <span class="chip-count">${huNumber.format(state.items.length)}</span>`;
     frag.appendChild(allBtn);
 
-    for (const [catName, count] of categories) {
+    for (const [catName, count] of visibleCats) {
       const active = state.category === catName;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `chip${active ? ' is-active' : ''}`;
       btn.dataset.category = catName;
+      btn.title = catName;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
-      btn.innerHTML = `${escapeHtml(catName)} <span class="chip-count">${huNumber.format(count)}</span>`;
+      btn.innerHTML = `${escapeHtml(getCategoryDisplayLabel(catName))} <span class="chip-count">${huNumber.format(count)}</span>`;
       frag.appendChild(btn);
+    }
+
+    if (categories.length > PRIMARY_CATEGORIES_LIMIT) {
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.id = 'toggle-more-cats';
+      toggleBtn.className = 'chip chip-more';
+      toggleBtn.dataset.toggleMoreCats = 'true';
+      toggleBtn.setAttribute('aria-expanded', state.showAllCategories ? 'true' : 'false');
+      toggleBtn.textContent = state.showAllCategories
+        ? 'Kevesebb'
+        : `Továbbiak (+${hiddenCount})`;
+      frag.appendChild(toggleBtn);
     }
 
     dom.categoryChips.textContent = '';
@@ -1197,6 +1247,11 @@
     });
 
     dom.categoryChips.addEventListener('click', (event) => {
+      if (event.target.closest('[data-toggle-more-cats="true"]')) {
+        state.showAllCategories = !state.showAllCategories;
+        buildCategoryChips();
+        return;
+      }
       const chip = event.target.closest('.chip[data-category]');
       if (!chip) return;
       const nextCategory = chip.dataset.category || 'all';
