@@ -41,6 +41,7 @@
     favorites: 'dohany_favorites',
     view: 'dohany_view',
     recentSearches: 'dohany_recent_searches',
+    ageVerified: 'dohany_age_verified',
   };
 
   const huCollator = new Intl.Collator('hu', { sensitivity: 'base', numeric: true });
@@ -259,6 +260,12 @@
     historyChartWrap: document.getElementById('history-chart-wrap'),
     historyTableWrap: document.getElementById('history-table-wrap'),
     historyTableBody: document.getElementById('history-table-body'),
+    legalOpenBtn: document.getElementById('legal-open-btn'),
+    legalModal: document.getElementById('legal-modal'),
+    legalModalPanel: document.getElementById('legal-modal-panel'),
+    ageGateModal: document.getElementById('age-gate-modal'),
+    ageGatePanel: document.getElementById('age-gate-panel'),
+    ageConfirmBtn: document.getElementById('age-confirm-btn'),
   };
 
   const state = {
@@ -1226,6 +1233,30 @@
       });
     }
 
+    if (dom.legalOpenBtn && dom.legalModal) {
+      dom.legalOpenBtn.addEventListener('click', () => {
+        if (!dom.legalModal.open) {
+          dom.legalModal.showModal();
+          if (dom.legalModalPanel) dom.legalModalPanel.focus({ preventScroll: true });
+        }
+      });
+      dom.legalModal.addEventListener('click', (event) => {
+        if (event.target === dom.legalModal || event.target.closest('#legal-modal-close')) {
+          dom.legalModal.close();
+        }
+      });
+    }
+
+    if (dom.ageGateModal && dom.ageConfirmBtn) {
+      dom.ageGateModal.addEventListener('cancel', (event) => {
+        event.preventDefault();
+      });
+      dom.ageConfirmBtn.addEventListener('click', () => {
+        writeStorage(STORAGE_KEYS.ageVerified, '1');
+        if (dom.ageGateModal.open) dom.ageGateModal.close();
+      });
+    }
+
     dom.searchInput.addEventListener('search', () => {
       const val = dom.searchInput.value;
       dom.searchClear.hidden = val.length === 0;
@@ -1339,12 +1370,21 @@
     });
   }
 
+  function initAgeGate() {
+    if (!dom.ageGateModal) return;
+    if (readStorage(STORAGE_KEYS.ageVerified, '') !== '1') {
+      dom.ageGateModal.showModal();
+      if (dom.ageGatePanel) dom.ageGatePanel.focus({ preventScroll: true });
+    }
+  }
+
   function init() {
     applyTheme(state.theme);
     syncViewButtons();
     readStateFromUrl();
     renderRecentSearches();
     bindEvents();
+    initAgeGate();
     loadPrices();
   }
 

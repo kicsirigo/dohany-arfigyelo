@@ -38,8 +38,13 @@ def test_desktop_core_flows_and_new_features(static_server_url: str) -> None:
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
         page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
 
-        # URL hydration + unit price + native <dialog> price history
+        # URL hydration + 18+ age gate + unit price + native <dialog> price history
         page.goto(f"{static_server_url}/?q=Borkum+Riff+Cherry&sort=price-asc", wait_until="networkidle")
+        page.wait_for_selector("dialog#age-gate-modal[open]")
+        page.keyboard.press("Escape")
+        assert page.locator("dialog#age-gate-modal[open]").count() == 1
+        page.locator("#age-confirm-btn").click()
+        assert page.locator("dialog#age-gate-modal[open]").count() == 0
         page.wait_for_selector(".product-card")
         assert page.locator("#search-input").input_value() == "Borkum Riff Cherry"
         assert page.locator("#sort-select").input_value() == "price-asc"
@@ -100,6 +105,13 @@ def test_desktop_core_flows_and_new_features(static_server_url: str) -> None:
         assert page.locator("#theme-toggle svg.icon").count() == 1
         assert page.locator("#share-link-btn svg.icon").count() == 1
 
+        # Legal / privacy modal
+        page.locator("#legal-open-btn").click()
+        page.wait_for_selector("dialog#legal-modal[open]")
+        assert "GDPR" in page.locator("#legal-modal").inner_text()
+        page.keyboard.press("Escape")
+        assert page.locator("dialog#legal-modal[open]").count() == 0
+
         # Zero desktop horizontal overflow
         assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
         browser.close()
@@ -116,6 +128,8 @@ def test_mobile_and_tablet_responsiveness(static_server_url: str) -> None:
             page.on("pageerror", lambda e: errors.append(f"pageerror({width}): {e}"))
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
             page.goto(static_server_url, wait_until="networkidle")
+            if page.locator("dialog#age-gate-modal[open]").count():
+                page.locator("#age-confirm-btn").click()
             page.wait_for_selector(".product-card")
             assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
             if width == 375:

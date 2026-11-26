@@ -184,10 +184,16 @@
   <footer id="site-footer" class="site-footer">
     <div class="container footer-inner">
       <div class="footer-top">
-        <a id="sztfh-source-link" class="footer-link" href="https://sztfh.hu/tevekenysegek/dohanyugyi-felugyelet/arak-kozzetetele/" target="_blank" rel="noopener noreferrer">
-          Hivatalos SZTFH adatforrás megnyitása
-          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-        </a>
+        <div class="footer-links">
+          <a id="sztfh-source-link" class="footer-link" href="https://sztfh.hu/tevekenysegek/dohanyugyi-felugyelet/arak-kozzetetele/" target="_blank" rel="noopener noreferrer">
+            Hivatalos SZTFH adatforrás megnyitása
+            <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          </a>
+          <button type="button" id="legal-open-btn" class="footer-link footer-link-btn">
+            <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            Adatkezelés és jogi tájékoztató
+          </button>
+        </div>
         <div class="footer-meta">
           <span class="footer-meta-item">Utolsó frissítés: <strong id="footer-last-updated" class="meta-date">—</strong></span>
           <span class="footer-meta-item">Forrásfájl: <strong id="footer-source-file">—</strong></span>
@@ -225,6 +231,49 @@
             </thead>
             <tbody id="history-table-body"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="legal-modal" class="history-modal" aria-labelledby="legal-modal-title">
+    <div id="legal-modal-panel" class="history-modal-panel" tabindex="-1">
+      <div class="history-modal-header">
+        <div class="history-modal-heading">
+          <h2 id="legal-modal-title" class="history-modal-title">Adatkezelés és jogi tájékoztató</h2>
+          <p class="history-modal-subtitle">Magyar Dohánytermék Árfigyelő — tájékoztató oldal</p>
+        </div>
+        <button type="button" id="legal-modal-close" class="history-modal-close" aria-label="Bezárás">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="history-modal-body legal-body">
+        <section class="legal-section">
+          <h3>1. Adatkezelés és sütik (GDPR)</h3>
+          <p>Ez a weboldal <strong>nem használ sütiket (cookie-kat)</strong>, nem alkalmaz látogatottságmérőt (pl. Google Analytics), hirdetéskövetést vagy felhasználói regisztrációt, és nem továbbít személyes adatokat saját szerverre.</p>
+          <p>A kényelmi beállítások (világos/sötét téma, kedvenc termékek, legutóbbi keresések, 18+ megerősítés) kizárólag az Ön böngészőjének helyi tárhelyében (<code>localStorage</code>) tárolódnak, és a böngésző adatainak törlésével bármikor eltávolíthatók.</p>
+          <p>Az oldal megjelenítése során a böngésző technikai kérést (IP-címet) küld a statikus tárhelyszolgáltató (<strong>GitHub Pages</strong>) és a betűtípusokat kiszolgáló <strong>Google Fonts</strong> felé.</p>
+        </section>
+        <section class="legal-section">
+          <h3>2. Jogi nyilatkozat (18+)</h3>
+          <p>A Magyar Dohánytermék Árfigyelő <strong>független, nem kereskedelmi célú</strong> tájékoztató oldal; nem áll kapcsolatban az SZTFH-val, az NDN Zrt.-vel vagy dohányipari szereplőkkel.</p>
+          <p>Az oldal <strong>nem folytat dohánytermék-értékesítést és nem tartalmaz reklámot vagy vásárlásra ösztönző ajánlást</strong>. A megjelenített adatok kizárólag a Szabályozott Tevékenységek Felügyeleti Hatósága (SZTFH) által nyilvánosan közzétett, közhiteles hatósági árlistákon alapulnak. Magyarországon dohányterméket kizárólag 18 éven felüliek vásárolhatnak Nemzeti Dohányboltokban.</p>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="age-gate-modal" class="history-modal age-gate-modal" aria-labelledby="age-gate-title" aria-describedby="age-gate-desc">
+    <div id="age-gate-panel" class="history-modal-panel age-gate-panel" tabindex="-1">
+      <div class="age-gate-content">
+        <span class="age-gate-badge" aria-hidden="true">18+</span>
+        <h2 id="age-gate-title" class="age-gate-title">Csak 18 éven felülieknek</h2>
+        <p id="age-gate-desc" class="age-gate-desc">
+          Ez az oldal a hivatalos SZTFH dohánytermék-árlistát jeleníti meg kizárólag tájékoztató jelleggel, <strong>18. életévüket betöltött</strong> felhasználók számára. Az oldal nem végez értékesítést és nem tartalmaz reklámot.
+        </p>
+        <div class="age-gate-actions">
+          <button type="button" id="age-confirm-btn" class="btn-primary age-gate-btn">Elmúltam 18 éves</button>
+          <a id="age-exit-btn" class="btn-secondary age-gate-btn" href="https://www.google.com" rel="noopener noreferrer">Kilépés</a>
         </div>
       </div>
     </div>
