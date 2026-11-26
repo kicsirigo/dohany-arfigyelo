@@ -735,3 +735,46 @@ def test_repo_price_history_json_schema_if_present() -> None:
         assert isinstance(pt, list) and len(pt) == 2
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", pt[0])
         assert type(pt[1]) is int and pt[1] > 0
+
+
+def test_dedupe_variants_keeps_newest_and_preserves_distinct_units() -> None:
+    wb_bytes = _make_xlsx_bytes([
+        ["Termék típus", "Termék megnevezése", "Mennyiség", "Mennyiségi egység", "Kiskereskedelmi eladási ár", "Érvényesség kezdete"],
+        ["Cigaretta", "Austin Blue 100's 20 szál TT", 20, "szál", 1950, "2024-12-23"],
+        ["Cigaretta", "Austin Blue 100's 20 szál ECS TT", 20, "szál", 2299, "2026-11-09"],
+        ["Cigaretta", "Camel Blue", 20, "szál", 2040, "2023-02-13"],
+        ["Cigaretta", "Camel Blue ECS (6)", 20, "szál", 2890, "2026-11-19"],
+        ["Cigaretta", "Camel Blue ECS (6) (2025 új kód)", 20, "szál", 2890, "2026-11-19"],
+        ["Finomra vágott fogyasztási dohány", "PALL MALL AMBER 30G", 30, "g", 2330, "2024-01-29"],
+        ["Finomra vágott fogyasztási dohány", "PALL MALL AMBER 30G ECS", 30, "g", 2950, "2026-11-16"],
+        ["Finomra vágott fogyasztási dohány", "PALL MALL AMBER 50G ECS", 50, "g", 4500, "2026-11-16"],
+    ])
+    items, aliases = up._parse_workbook_with_aliases(wb_bytes)
+    by_name = {it["name"]: it for it in items}
+    assert set(by_name.keys()) == {
+        "Austin Blue 100's 20 szál ECS TT",
+        "Camel Blue ECS (6)",
+        "PALL MALL AMBER 30G ECS",
+        "PALL MALL AMBER 50G ECS",
+    }
+    assert by_name["Austin Blue 100's 20 szál ECS TT"]["price"] == 2299
+    assert by_name["Camel Blue ECS (6)"]["price"] == 2890
+    old_austin_id = up.compute_item_id("Austin Blue 100's 20 szál TT", "20 szál")
+    assert aliases[old_austin_id] == by_name["Austin Blue 100's 20 szál ECS TT"]["id"]
+
+
+def test_history_merges_old_variant_points_into_winner() -> None:
+    winner_id = up.compute_item_id("Marlboro advance blue - ECS", "20 szál")
+    old_id = up.compute_item_id("Marlboro Advance Blue", "20 szál")
+    hist_bytes = _make_xlsx_bytes([
+        ["Termék típus", "Termék megnevezése", "Mennyiség", "Mennyiségi egység", "Kiskereskedelmi eladási ár", "Érvényesség kezdete"],
+        ["Cigaretta", "Marlboro Advance Blue", 20, "szál", 1600, "2019-05-01"],
+        ["Cigaretta", "Marlboro Advance Blue", 20, "szál", 2230, "2024-03-21"],
+        ["Cigaretta", "Marlboro advance blue - ECS", 20, "szál", 2880, "2026-10-29"],
+    ])
+    hist = up.parse_history_workbook(hist_bytes, active_ids={winner_id}, id_aliases={old_id: winner_id})
+    assert hist[winner_id] == [
+        ["2019-05-01", 1600],
+        ["2024-03-21", 2230],
+        ["2026-10-29", 2880],
+    ]

@@ -1499,30 +1499,6 @@ mark,
   gap: 0.35rem;
 }
 
-.results-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  margin: 0 0 0.875rem;
-  padding: 0.55rem 0.85rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background-color: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-  line-height: 1.4;
-}
-
-.results-hint .icon {
-  margin-top: 0.12rem;
-  color: var(--accent);
-}
-
-.results-hint strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
 .chip-more {
   border-style: dashed;
   color: var(--text-secondary);

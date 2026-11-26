@@ -356,26 +356,69 @@ def _iter_parsed_rows(xlsx_bytes: bytes):
         wb.close()
 
 
-def parse_workbook(xlsx_bytes: bytes) -> list[dict]:
-    """Parse SZTFH .xlsx bytes into deduplicated normalized product dicts."""
+def canonical_variant_key(category: str, name: str, unit: str) -> tuple[str, str, str]:
+    """Compute a canonical key stripping regulatory/packaging suffixes (ECS, TT, 2025 új kód)."""
+    s = re.sub(r"\(\s*(?:20\d{2}\s+új\s+kód|új|ecs|tt|\d{1,2})\s*\)", "", name, flags=re.I)
+    s = re.sub(r"\b(?:ecs|tt)\b", "", s, flags=re.I)
+    s = re.sub(r"[\s\-_/]+", " ", s).strip()
+    return (_normalize_for_match(category), _normalize_for_match(s), _normalize_for_match(unit))
+
+
+def _variant_rank(item: dict, order_idx: int) -> tuple:
+    """Rank competing variants: newest valid_from wins; tie-break cleaner ECS name, price, order."""
+    name_norm = _normalize_for_match(item["name"])
+    has_uj_kod = "uj kod" in name_norm or "(uj)" in name_norm
+    has_ecs = bool(re.search(r"\becs\b", name_norm))
+    return (_valid_from_key(item["valid_from"]), not has_uj_kod, has_ecs, item["price"], order_idx)
+
+
+def dedupe_variants(items: list[dict]) -> tuple[list[dict], dict[str, str]]:
+    """Collapse old ECS/TT/packaging variants, keeping only the newest item per canonical product."""
+    groups: dict[tuple[str, str, str], list[tuple[int, dict]]] = {}
+    for idx, item in enumerate(items):
+        key = canonical_variant_key(item["category"], item["name"], item["unit"])
+        groups.setdefault(key, []).append((idx, item))
+
+    deduped: list[dict] = []
+    id_aliases: dict[str, str] = {}
+    for entries in groups.values():
+        _, winner = max(entries, key=lambda pair: _variant_rank(pair[1], pair[0]))
+        deduped.append(winner)
+        for _, candidate in entries:
+            if candidate["id"] != winner["id"]:
+                id_aliases[candidate["id"]] = winner["id"]
+    return deduped, id_aliases
+
+
+def _parse_workbook_with_aliases(xlsx_bytes: bytes) -> tuple[list[dict], dict[str, str]]:
     dedup_map: dict[str, dict] = {}
     for item in _iter_parsed_rows(xlsx_bytes):
         existing = dedup_map.get(item["id"])
         if existing is None or _valid_from_key(item["valid_from"]) >= _valid_from_key(existing["valid_from"]):
             dedup_map[item["id"]] = item
-    return list(dedup_map.values())
+    return dedupe_variants(list(dedup_map.values()))
+
+
+def parse_workbook(xlsx_bytes: bytes) -> list[dict]:
+    """Parse SZTFH .xlsx bytes into deduplicated normalized product dicts."""
+    items, _ = _parse_workbook_with_aliases(xlsx_bytes)
+    return items
 
 
 def parse_history_workbook(
-    xlsx_bytes: bytes, active_ids: set[str] | None = None
+    xlsx_bytes: bytes,
+    active_ids: set[str] | None = None,
+    id_aliases: dict[str, str] | None = None,
 ) -> dict[str, list[list]]:
     """Parse cumulative 2017+ SZTFH .xlsx into compact {id: [[date, price], ...]} history."""
+    aliases = id_aliases or {}
     by_id: dict[str, dict[str, int]] = {}
     for item in _iter_parsed_rows(xlsx_bytes):
-        if active_ids is not None and item["id"] not in active_ids:
+        target_id = aliases.get(item["id"], item["id"])
+        if active_ids is not None and target_id not in active_ids:
             continue
         if item["valid_from"]:
-            by_id.setdefault(item["id"], {})[item["valid_from"]] = item["price"]
+            by_id.setdefault(target_id, {})[item["valid_from"]] = item["price"]
 
     result: dict[str, list[list]] = {}
     for item_id, date_map in by_id.items():
@@ -501,6 +544,7 @@ def _update_history_if_available(
     active_ids: set[str],
     history_output_path: Path | None,
     timeout: float,
+    id_aliases: dict[str, str] | None = None,
 ) -> bool:
     if history_output_path is None:
         return False
@@ -510,7 +554,9 @@ def _update_history_if_available(
     try:
         hist_resp = http.get(history_url, headers=headers, timeout=timeout)
         hist_resp.raise_for_status()
-        history_map = parse_history_workbook(hist_resp.content, active_ids=active_ids)
+        history_map = parse_history_workbook(
+            hist_resp.content, active_ids=active_ids, id_aliases=id_aliases
+        )
         if not history_map:
             return False
         if history_output_path.exists():
@@ -554,7 +600,7 @@ def update_prices(
         xlsx_resp = http.get(xlsx_url, headers=headers, timeout=timeout)
         xlsx_resp.raise_for_status()
 
-        parsed_items = parse_workbook(xlsx_resp.content)
+        parsed_items, id_aliases = _parse_workbook_with_aliases(xlsx_resp.content)
         if not parsed_items:
             raise ValueError(f"Parsed 0 product items from {xlsx_url}")
 
@@ -563,7 +609,7 @@ def update_prices(
         if should_skip_write(prior_data, source_file, parsed_items):
             if not resolved_history_path.exists():
                 _update_history_if_available(
-                    http, headers, page_resp.text, page_url, active_ids, resolved_history_path, timeout
+                    http, headers, page_resp.text, page_url, active_ids, resolved_history_path, timeout, id_aliases=id_aliases
                 )
             return False
 
@@ -584,7 +630,7 @@ def update_prices(
         }
         atomic_write_json(output_path, payload)
         _update_history_if_available(
-            http, headers, page_resp.text, page_url, active_ids, resolved_history_path, timeout
+            http, headers, page_resp.text, page_url, active_ids, resolved_history_path, timeout, id_aliases=id_aliases
         )
         return True
     finally:
