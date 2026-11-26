@@ -29,6 +29,7 @@ DEFAULT_USER_AGENT = (
     "+https://github.com/kicsirigo/dohany-arfigyelo)"
 )
 DEFAULT_OUTPUT_PATH = Path("data/prices.json")
+DEFAULT_HISTORY_OUTPUT_PATH = Path("data/price_history.json")
 DEFAULT_TIMEOUT = 30
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -259,6 +260,122 @@ def find_xlsx_url(html: str, page_url: str) -> str:
             return best[2]
 
     raise ValueError(f"No active SZTFH .xlsx price list link found at {page_url}")
+
+
+def find_history_xlsx_url(html: str, page_url: str) -> str | None:
+    """Discover the cumulative 2017+ historical SZTFH .xlsx URL from HTML, if present."""
+    soup = BeautifulSoup(html, "html.parser")
+    candidates: list[tuple[int, str, str]] = []
+
+    for idx, anchor in enumerate(soup.find_all("a", href=True)):
+        raw_href = str(anchor["href"]).strip()
+        if not raw_href or raw_href.startswith(("#", "javascript:", "mailto:")):
+            continue
+        full_url = urljoin(page_url, raw_href)
+        parsed = urlparse(full_url)
+        if not parsed.path.lower().endswith(".xlsx"):
+            continue
+
+        filename_norm = _normalize_for_match(Path(parsed.path).name)
+        text_norm = _normalize_for_match(anchor.get_text(" ", strip=True))
+        combined = f"{filename_norm} {text_norm}"
+        if "2017" in combined and "valtozas" not in combined:
+            ts_key = _extract_timestamp_key(full_url)
+            candidates.append((idx, ts_key, full_url))
+
+    if not candidates:
+        return None
+    if any(item[1] for item in candidates):
+        best = max(candidates, key=lambda item: (item[1], -item[0]))
+    else:
+        best = candidates[0]
+    return best[2]
+
+
+def parse_history_workbook(
+    xlsx_bytes: bytes, active_ids: set[str] | None = None
+) -> dict[str, list[list]]:
+    """Parse cumulative 2017+ SZTFH .xlsx into compact {id: [[date, price], ...]} history."""
+    workbook = openpyxl.load_workbook(
+        BytesIO(xlsx_bytes), read_only=True, data_only=True
+    )
+    try:
+        sheet = workbook.active
+        header_map: dict[str, int] | None = None
+        by_id: dict[str, dict[str, int]] = {}
+
+        for row in sheet.iter_rows(values_only=True):
+            if not row or all(cell is None or str(cell).strip() == "" for cell in row):
+                continue
+
+            if header_map is None:
+                detected = _match_header_row(row)
+                if detected is not None:
+                    header_map = detected
+                continue
+
+            name_idx = header_map.get("name")
+            price_idx = header_map.get("price")
+            if name_idx is None or price_idx is None:
+                continue
+            if name_idx >= len(row) or price_idx >= len(row):
+                continue
+
+            name = normalize_name(row[name_idx])
+            if not name:
+                continue
+            name_norm = _normalize_for_match(name)
+            if name_norm.startswith(_SUMMARY_PREFIXES):
+                continue
+
+            price = parse_price(row[price_idx])
+            if price is None:
+                continue
+
+            qty_idx = header_map.get("qty")
+            unit_label_idx = header_map.get("unit_label")
+            combined_idx = header_map.get("combined_unit")
+            valid_idx = header_map.get("valid_from")
+
+            qty_val = row[qty_idx] if qty_idx is not None and qty_idx < len(row) else None
+            unit_val = (
+                row[unit_label_idx]
+                if unit_label_idx is not None and unit_label_idx < len(row)
+                else None
+            )
+            combined_val = (
+                row[combined_idx]
+                if combined_idx is not None and combined_idx < len(row)
+                else None
+            )
+            unit = normalize_unit(qty_val, unit_val, combined_val)
+            item_id = compute_item_id(name, unit)
+
+            if active_ids is not None and item_id not in active_ids:
+                continue
+
+            valid_raw = (
+                row[valid_idx] if valid_idx is not None and valid_idx < len(row) else None
+            )
+            valid_from = parse_valid_from(valid_raw)
+            if not valid_from:
+                continue
+
+            by_id.setdefault(item_id, {})[valid_from] = price
+
+        result: dict[str, list[list]] = {}
+        for item_id, date_map in by_id.items():
+            ordered: list[list] = []
+            for dt_str in sorted(date_map):
+                pr = date_map[dt_str]
+                if ordered and ordered[-1][1] == pr:
+                    continue
+                ordered.append([dt_str, pr])
+            if ordered:
+                result[item_id] = ordered
+        return result
+    finally:
+        workbook.close()
 
 
 def _match_header_row(row: tuple[object, ...]) -> dict[str, int] | None:
@@ -562,7 +679,9 @@ def apply_price_diffs(
     return result
 
 
-def atomic_write_json(output_path: Path, payload: dict) -> None:
+def atomic_write_json(
+    output_path: Path, payload: dict, *, compact: bool = False
+) -> None:
     """Atomically write JSON with UTF-8 encoding, fsync, 0644 permissions, and os.replace."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path: Path | None = None
@@ -576,7 +695,16 @@ def atomic_write_json(output_path: Path, payload: dict) -> None:
             delete=False,
         ) as tmp_file:
             tmp_path = Path(tmp_file.name)
-            json.dump(payload, tmp_file, ensure_ascii=False, indent=2)
+            if compact:
+                json.dump(
+                    payload,
+                    tmp_file,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            else:
+                json.dump(payload, tmp_file, ensure_ascii=False, indent=2)
             tmp_file.write("\n")
             tmp_file.flush()
             os.fsync(tmp_file.fileno())
@@ -588,18 +716,72 @@ def atomic_write_json(output_path: Path, payload: dict) -> None:
         raise
 
 
+def _update_history_if_available(
+    http: requests.Session,
+    headers: dict[str, str],
+    page_html: str,
+    page_url: str,
+    active_ids: set[str],
+    history_output_path: Path | None,
+    timeout: float,
+) -> bool:
+    """Fetch and write compact 2017+ price history JSON when available on SZTFH."""
+    if history_output_path is None:
+        return False
+    history_url = find_history_xlsx_url(page_html, page_url)
+    if not history_url:
+        logger.debug("No cumulative 2017+ history .xlsx link found on %s", page_url)
+        return False
+
+    try:
+        logger.info("Downloading historical workbook: %s", history_url)
+        hist_resp = http.get(history_url, headers=headers, timeout=timeout)
+        hist_resp.raise_for_status()
+        history_map = parse_history_workbook(hist_resp.content, active_ids=active_ids)
+        if not history_map:
+            logger.warning("Parsed 0 historical entries from %s", history_url)
+            return False
+
+        # Skip write if identical to existing file on disk
+        if history_output_path.exists():
+            try:
+                existing = json.loads(history_output_path.read_text(encoding="utf-8"))
+                if existing == history_map:
+                    logger.info("No changes in %s; leaving untouched.", history_output_path)
+                    return False
+            except Exception:
+                pass
+
+        atomic_write_json(history_output_path, history_map, compact=True)
+        logger.info(
+            "Wrote history for %d items to %s",
+            len(history_map),
+            history_output_path,
+        )
+        return True
+    except Exception as exc:
+        logger.warning("Could not update price history (%s): %s", history_url, exc)
+        return False
+
+
 def update_prices(
     page_url: str = SZTFH_PAGE_URL,
     output_path: Path = DEFAULT_OUTPUT_PATH,
     timeout: float = DEFAULT_TIMEOUT,
     now: datetime | None = None,
     session: requests.Session | None = None,
+    history_output_path: Path | None = None,
 ) -> bool:
     """Fetch SZTFH prices, compute diffs, and write output_path if changed.
 
     Returns True if output_path was written, False if skipped idempotently.
     """
     output_path = Path(output_path)
+    resolved_history_path = (
+        Path(history_output_path)
+        if history_output_path is not None
+        else output_path.parent / DEFAULT_HISTORY_OUTPUT_PATH.name
+    )
     headers = {"User-Agent": DEFAULT_USER_AGENT}
     owns_session = session is None
     http = session or requests.Session()
@@ -620,6 +802,7 @@ def update_prices(
         if not parsed_items:
             raise ValueError(f"Parsed 0 product items from {xlsx_url}")
 
+        active_ids = {item["id"] for item in parsed_items}
         prior_data = load_prior_data(output_path)
         if should_skip_write(prior_data, source_file, parsed_items):
             logger.info(
@@ -628,6 +811,16 @@ def update_prices(
                 len(parsed_items),
                 output_path,
             )
+            if not resolved_history_path.exists():
+                _update_history_if_available(
+                    http=http,
+                    headers=headers,
+                    page_html=page_resp.text,
+                    page_url=page_url,
+                    active_ids=active_ids,
+                    history_output_path=resolved_history_path,
+                    timeout=timeout,
+                )
             return False
 
         current_utc = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -661,6 +854,16 @@ def update_prices(
 
         atomic_write_json(output_path, payload)
         logger.info("Wrote %d items to %s (source: %s)", len(items), output_path, source_file)
+
+        _update_history_if_available(
+            http=http,
+            headers=headers,
+            page_html=page_resp.text,
+            page_url=page_url,
+            active_ids=active_ids,
+            history_output_path=resolved_history_path,
+            timeout=timeout,
+        )
         return True
     finally:
         if owns_session:

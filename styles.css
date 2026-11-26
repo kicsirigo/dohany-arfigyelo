@@ -1088,3 +1088,399 @@ mark,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   Quick Search Bar (Popular Brands & Recent Searches)
+   ========================================================================== */
+
+.quick-search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.quick-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.quick-label {
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 0.125rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.quick-chip {
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.quick-chip:hover,
+.quick-chip:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.quick-chip:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.quick-chip.is-recent {
+  border-style: dashed;
+  border-color: var(--border-gold);
+}
+
+.quick-clear-btn {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-clear-btn:hover,
+.quick-clear-btn:focus-visible {
+  color: var(--status-up);
+  border-color: var(--status-up);
+  outline: none;
+}
+
+/* ==========================================================================
+   Share Button, Unit Price & History Trigger
+   ========================================================================== */
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.375rem 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-gold);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.share-btn:hover,
+.share-btn:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.share-btn.is-copied {
+  border-color: var(--status-down);
+  color: var(--status-down);
+}
+
+.unit-price {
+  display: inline-block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.table-unit-price {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.125rem;
+}
+
+.card-actions-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.history-btn {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.history-btn:hover,
+.history-btn:focus-visible {
+  background-color: var(--fav-active-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.cell-valid-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* ==========================================================================
+   Price History Modal & SVG Chart
+   ========================================================================== */
+
+.history-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.history-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.history-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 680px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.history-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-gold);
+  background-color: var(--bg-secondary);
+}
+
+.history-modal-heading {
+  min-width: 0;
+}
+
+.history-modal-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.history-modal-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.history-modal-close {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-gold);
+  background-color: transparent;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-modal-close:hover,
+.history-modal-close:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.history-modal-body {
+  padding: 1rem 1.25rem 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.625rem;
+}
+
+.history-stat {
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.history-stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.history-stat-value {
+  display: block;
+  margin-top: 0.125rem;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-stat-value.is-up {
+  color: var(--status-up);
+}
+
+.history-stat-value.is-down {
+  color: var(--status-down);
+}
+
+.history-chart-wrap {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  overflow: hidden;
+}
+
+.history-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.history-chart-note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0.75rem 0.25rem;
+}
+
+.history-table-wrap {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.history-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background-color: var(--bg-secondary);
+}
+
+.history-table tr:last-child td {
+  border-bottom: none;
+}
+
+.history-diff-up {
+  color: var(--status-up);
+  font-weight: 600;
+}
+
+.history-diff-down {
+  color: var(--status-down);
+  font-weight: 600;
+}
+
+.history-diff-neutral {
+  color: var(--text-secondary);
+}
+
+@media (min-width: 768px) {
+  .quick-chips {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .quick-chip {
+    min-height: 36px;
+  }
+}

@@ -2,18 +2,23 @@
   'use strict';
 
   const DATA_URL = './data/prices.json';
+  const HISTORY_DATA_URL = './data/price_history.json';
   const PAGE_SIZE = 60;
   const DEBOUNCE_MS = 150;
+  const MAX_RECENT_SEARCHES = 5;
   const DEFAULT_CATEGORY = 'Egyéb';
+  const VALID_SORTS = new Set(['name-asc', 'name-desc', 'price-asc', 'price-desc', 'changed-desc']);
 
   const STORAGE_KEYS = {
     theme: 'dohany_theme',
     favorites: 'dohany_favorites',
     view: 'dohany_view',
+    recentSearches: 'dohany_recent_searches',
   };
 
   const huCollator = new Intl.Collator('hu', { sensitivity: 'base', numeric: true });
   const huNumber = new Intl.NumberFormat('hu-HU');
+  const huDecimal = new Intl.NumberFormat('hu-HU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const huDateTime = new Intl.DateTimeFormat('hu-HU', {
     year: 'numeric',
     month: '2-digit',
@@ -66,6 +71,36 @@
 
   function saveFavorites(favSet) {
     writeStorage(STORAGE_KEYS.favorites, JSON.stringify(Array.from(favSet)));
+  }
+
+  function loadRecentSearches() {
+    const raw = readStorage(STORAGE_KEYS.recentSearches, '[]');
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((s) => typeof s === 'string' && s.trim().length >= 2)
+        .map((s) => s.trim())
+        .slice(0, MAX_RECENT_SEARCHES);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveRecentSearches(list) {
+    writeStorage(STORAGE_KEYS.recentSearches, JSON.stringify(list.slice(0, MAX_RECENT_SEARCHES)));
+  }
+
+  function formatUnitPrice(price, unit) {
+    if (!price || price <= 0 || !unit) return '';
+    const match = String(unit).trim().match(/^(\d+(?:[.,]\d+)?)\s*(szál|g|ml|db)$/i);
+    if (!match) return '';
+    const qty = Number(match[1].replace(',', '.'));
+    const unitLabel = match[2].toLowerCase();
+    if (!Number.isFinite(qty) || qty <= 1) return '';
+    const perUnit = price / qty;
+    const formatted = perUnit >= 20 ? huNumber.format(Math.round(perUnit)) : huDecimal.format(perUnit);
+    return `${formatted} Ft/${unitLabel}`;
   }
 
   function escapeHtml(str) {
@@ -213,12 +248,17 @@
     metaTotalCount: document.getElementById('meta-total-count'),
     searchInput: document.getElementById('search-input'),
     searchClear: document.getElementById('search-clear'),
+    quickSearchBar: document.getElementById('quick-search-bar'),
+    recentSearchesGroup: document.getElementById('recent-searches-group'),
+    recentSearchesList: document.getElementById('recent-searches-list'),
+    clearRecentBtn: document.getElementById('clear-recent-btn'),
     categoryChips: document.getElementById('category-chips'),
     favoritesToggle: document.getElementById('favorites-toggle'),
     favoritesCount: document.getElementById('favorites-count'),
     filterChanged: document.getElementById('filter-changed'),
     changedCount: document.getElementById('changed-count'),
     resultCounter: document.getElementById('result-counter'),
+    shareLinkBtn: document.getElementById('share-link-btn'),
     sortSelect: document.getElementById('sort-select'),
     viewToggle: document.getElementById('view-toggle'),
     viewGridBtn: document.getElementById('view-grid-btn'),
@@ -242,14 +282,24 @@
     footerLastUpdated: document.getElementById('footer-last-updated'),
     footerSourceFile: document.getElementById('footer-source-file'),
     footerTotalCount: document.getElementById('footer-total-count'),
+    historyModal: document.getElementById('history-modal'),
+    historyModalTitle: document.getElementById('history-modal-title'),
+    historyModalSubtitle: document.getElementById('history-modal-subtitle'),
+    historyModalClose: document.getElementById('history-modal-close'),
+    historyStats: document.getElementById('history-stats'),
+    historyChartWrap: document.getElementById('history-chart-wrap'),
+    historyTableWrap: document.getElementById('history-table-wrap'),
+    historyTableBody: document.getElementById('history-table-body'),
   };
 
   const state = {
     theme: loadTheme(),
     viewMode: loadViewMode(),
     favorites: loadFavorites(),
+    recentSearches: loadRecentSearches(),
     items: [],
     itemIds: new Set(),
+    itemById: new Map(),
     filteredItems: [],
     queryTokens: [],
     query: '',
@@ -259,7 +309,12 @@
     sortBy: 'name-asc',
     visibleCount: PAGE_SIZE,
     debounceTimer: null,
+    recentTimer: null,
+    shareResetTimer: null,
     isLoaded: false,
+    priceHistory: null,
+    priceHistoryPromise: null,
+    activeHistoryId: null,
   };
 
   function applyTheme(theme) {
@@ -348,6 +403,10 @@
     const highlightedName = highlightNameHtml(item.name, state.queryTokens);
     const badgesHtml = renderDiffBadgesMarkup(item);
     const prevPriceHtml = renderPrevPriceMarkup(item);
+    const unitPriceText = formatUnitPrice(item.price, item.unit);
+    const unitPriceHtml = unitPriceText
+      ? `<span class="unit-price">${escapeHtml(unitPriceText)}</span>`
+      : '';
     const validFromHtml = item.valid_from
       ? `<span class="valid-from">Utolsó árváltozás: ${escapeHtml(item.valid_from)}</span>`
       : '';
@@ -361,19 +420,29 @@
           <span class="product-category">${escapeHtml(item.category)}</span>
           ${unitHtml}
         </div>
-        <button
-          type="button"
-          class="fav-btn${isFav ? ' is-favorite' : ''}"
-          data-id="${escapeHtml(item.id)}"
-          aria-pressed="${isFav ? 'true' : 'false'}"
-          aria-label="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}: ${escapeHtml(item.name)}"
-          title="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}"
-        >${isFav ? '★' : '☆'}</button>
+        <div class="card-actions-inline">
+          <button
+            type="button"
+            class="history-btn"
+            data-history-id="${escapeHtml(item.id)}"
+            aria-label="Árelőzmény megtekintése: ${escapeHtml(item.name)}"
+            title="Árelőzmény (2017–2026)"
+          >📈</button>
+          <button
+            type="button"
+            class="fav-btn${isFav ? ' is-favorite' : ''}"
+            data-id="${escapeHtml(item.id)}"
+            aria-pressed="${isFav ? 'true' : 'false'}"
+            aria-label="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}: ${escapeHtml(item.name)}"
+            title="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}"
+          >${isFav ? '★' : '☆'}</button>
+        </div>
       </div>
       <h2 class="product-name">${highlightedName}</h2>
       <div class="card-bottom">
         <div class="card-pricing">
           <span class="product-price">${formatPrice(item.price)}</span>
+          ${unitPriceHtml}
           ${prevPriceHtml}
           ${badgesHtml}
         </div>
@@ -393,6 +462,10 @@
     const highlightedName = highlightNameHtml(item.name, state.queryTokens);
     const badgesHtml = renderDiffBadgesMarkup(item);
     const prevPriceHtml = renderPrevPriceMarkup(item);
+    const unitPriceText = formatUnitPrice(item.price, item.unit);
+    const tableUnitPriceHtml = unitPriceText
+      ? `<span class="table-unit-price">${escapeHtml(unitPriceText)}</span>`
+      : '';
 
     tr.innerHTML = `
       <td class="cell-fav">
@@ -408,14 +481,28 @@
       <td class="cell-name"><span class="table-product-name">${highlightedName}</span></td>
       <td class="cell-cat"><span class="product-category">${escapeHtml(item.category)}</span></td>
       <td class="cell-unit"><span class="product-unit">${escapeHtml(item.unit || '—')}</span></td>
-      <td class="cell-price"><span class="table-price">${formatPrice(item.price)}</span></td>
+      <td class="cell-price">
+        <span class="table-price">${formatPrice(item.price)}</span>
+        ${tableUnitPriceHtml}
+      </td>
       <td class="cell-diff">
         <div class="cell-diff-wrap">
           ${badgesHtml || '<span class="valid-from">—</span>'}
           ${prevPriceHtml}
         </div>
       </td>
-      <td class="cell-valid"><span class="valid-from">${escapeHtml(item.valid_from || '—')}</span></td>
+      <td class="cell-valid">
+        <div class="cell-valid-wrap">
+          <span class="valid-from">${escapeHtml(item.valid_from || '—')}</span>
+          <button
+            type="button"
+            class="history-btn"
+            data-history-id="${escapeHtml(item.id)}"
+            aria-label="Árelőzmény megtekintése: ${escapeHtml(item.name)}"
+            title="Árelőzmény (2017–2026)"
+          >📈</button>
+        </div>
+      </td>
     `;
 
     return tr;
@@ -563,7 +650,362 @@
       state.visibleCount = PAGE_SIZE;
     }
 
+    syncUrlWithState();
     renderCurrentResults();
+  }
+
+  function readStateFromUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('q');
+      if (q && q.trim()) {
+        state.query = q.trim();
+        dom.searchInput.value = state.query;
+        dom.searchClear.hidden = false;
+      }
+      const cat = params.get('cat');
+      if (cat && cat.trim()) {
+        state.category = cat.trim();
+      }
+      const sort = params.get('sort');
+      if (sort && VALID_SORTS.has(sort)) {
+        state.sortBy = sort;
+        dom.sortSelect.value = sort;
+      }
+      if (params.get('fav') === '1') {
+        state.onlyFavorites = true;
+        dom.favoritesToggle.classList.add('is-active');
+        dom.favoritesToggle.setAttribute('aria-pressed', 'true');
+      }
+      if (params.get('changed') === '1') {
+        state.onlyChanged = true;
+        dom.filterChanged.classList.add('is-active');
+        dom.filterChanged.setAttribute('aria-pressed', 'true');
+      }
+    } catch (_) {
+      // Ignore malformed URLs
+    }
+  }
+
+  function syncUrlWithState() {
+    try {
+      const params = new URLSearchParams();
+      if (state.query.trim()) params.set('q', state.query.trim());
+      if (state.category && state.category !== 'all') params.set('cat', state.category);
+      if (state.sortBy && state.sortBy !== 'name-asc') params.set('sort', state.sortBy);
+      if (state.onlyFavorites) params.set('fav', '1');
+      if (state.onlyChanged) params.set('changed', '1');
+
+      const qs = params.toString();
+      const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
+      const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (nextUrl !== currentUrl) {
+        window.history.replaceState(null, '', nextUrl);
+      }
+    } catch (_) {
+      // Ignore SecurityError in restricted environments
+    }
+  }
+
+  function renderRecentSearches() {
+    if (!dom.recentSearchesGroup || !dom.recentSearchesList) return;
+    if (!state.recentSearches.length) {
+      dom.recentSearchesGroup.hidden = true;
+      dom.recentSearchesList.textContent = '';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    for (const term of state.recentSearches) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-chip is-recent';
+      btn.dataset.quickQuery = term;
+      btn.textContent = term;
+      frag.appendChild(btn);
+    }
+    dom.recentSearchesList.textContent = '';
+    dom.recentSearchesList.appendChild(frag);
+    dom.recentSearchesGroup.hidden = false;
+  }
+
+  function recordRecentSearch(rawQuery) {
+    const trimmed = String(rawQuery || '').trim();
+    if (trimmed.length < 2) return;
+    const norm = normalizeText(trimmed);
+    const next = [
+      trimmed,
+      ...state.recentSearches.filter((item) => normalizeText(item) !== norm),
+    ].slice(0, MAX_RECENT_SEARCHES);
+    state.recentSearches = next;
+    saveRecentSearches(next);
+    renderRecentSearches();
+  }
+
+  function applyQuickQuery(term) {
+    const cleaned = String(term || '').trim();
+    if (!cleaned) return;
+    if (state.debounceTimer !== null) {
+      clearTimeout(state.debounceTimer);
+      state.debounceTimer = null;
+    }
+    dom.searchInput.value = cleaned;
+    dom.searchClear.hidden = false;
+    state.query = cleaned;
+    recordRecentSearch(cleaned);
+    applyFiltersAndRender(true);
+  }
+
+  async function copyShareUrl() {
+    syncUrlWithState();
+    const url = window.location.href;
+    let copied = false;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      }
+    } catch (_) {
+      copied = false;
+    }
+
+    if (!copied) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (_) {
+        copied = false;
+      }
+    }
+
+    if (dom.shareLinkBtn) {
+      const label = dom.shareLinkBtn.querySelector('.share-btn-label');
+      if (state.shareResetTimer !== null) {
+        clearTimeout(state.shareResetTimer);
+      }
+      if (copied) {
+        dom.shareLinkBtn.classList.add('is-copied');
+        if (label) label.textContent = 'Link másolva!';
+      } else if (label) {
+        label.textContent = 'Másolás sikertelen';
+      }
+      state.shareResetTimer = setTimeout(() => {
+        state.shareResetTimer = null;
+        dom.shareLinkBtn.classList.remove('is-copied');
+        if (label) label.textContent = 'Megosztás';
+      }, 1800);
+    }
+  }
+
+  async function ensurePriceHistoryLoaded() {
+    if (state.priceHistory !== null) return state.priceHistory;
+    if (!state.priceHistoryPromise) {
+      state.priceHistoryPromise = fetch(HISTORY_DATA_URL, { cache: 'no-cache' })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          state.priceHistory = data && typeof data === 'object' ? data : {};
+          return state.priceHistory;
+        })
+        .catch((err) => {
+          console.warn('Nem sikerült betölteni az árelőzményeket:', err);
+          state.priceHistory = {};
+          return state.priceHistory;
+        });
+    }
+    return state.priceHistoryPromise;
+  }
+
+  function renderHistoryChartSvg(points) {
+    if (!points || points.length < 2) {
+      return '<p class="history-chart-note">Ehhez a termékhez csak 1 hivatalos árpont szerepel a 2017–2026-os nyilvántartásban.</p>';
+    }
+
+    const width = 600;
+    const height = 220;
+    const padL = 62;
+    const padR = 18;
+    const padT = 18;
+    const padB = 34;
+    const plotW = width - padL - padR;
+    const plotH = height - padT - padB;
+
+    const times = points.map(([d]) => new Date(`${d}T00:00:00Z`).getTime());
+    const prices = points.map(([, p]) => p);
+    const minT = Math.min(...times);
+    const maxT = Math.max(...times);
+    const spanT = maxT > minT ? maxT - minT : 1;
+
+    const minP = Math.min(...prices);
+    const maxP = Math.max(...prices);
+    const padP = maxP > minP ? Math.max(50, Math.round((maxP - minP) * 0.12)) : Math.max(100, Math.round(minP * 0.1));
+    const yMin = Math.max(0, minP - padP);
+    const yMax = maxP + padP;
+    const spanY = yMax > yMin ? yMax - yMin : 1;
+
+    const xOf = (t) => padL + ((t - minT) / spanT) * plotW;
+    const yOf = (p) => padT + plotH - ((p - yMin) / spanY) * plotH;
+
+    // Step-line path (accurate for official fixed prices between change dates)
+    let linePath = '';
+    for (let i = 0; i < points.length; i++) {
+      const x = xOf(times[i]);
+      const y = yOf(prices[i]);
+      if (i === 0) {
+        linePath += `M ${x.toFixed(1)} ${y.toFixed(1)}`;
+      } else {
+        const prevY = yOf(prices[i - 1]);
+        linePath += ` L ${x.toFixed(1)} ${prevY.toFixed(1)} L ${x.toFixed(1)} ${y.toFixed(1)}`;
+      }
+    }
+
+    const firstX = xOf(times[0]).toFixed(1);
+    const lastX = xOf(times[times.length - 1]).toFixed(1);
+    const baseY = (padT + plotH).toFixed(1);
+    const areaPath = `${linePath} L ${lastX} ${baseY} L ${firstX} ${baseY} Z`;
+
+    const yTicks = 4;
+    let gridHtml = '';
+    for (let i = 0; i <= yTicks; i++) {
+      const val = Math.round(yMin + (spanY * i) / yTicks);
+      const y = yOf(val).toFixed(1);
+      gridHtml += `
+        <line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="var(--border-subtle)" stroke-dasharray="3 3" />
+        <text x="${padL - 8}" y="${(Number(y) + 4).toFixed(1)}" text-anchor="end" fill="var(--text-secondary)" font-size="11">${escapeHtml(huNumber.format(val))} Ft</text>
+      `;
+    }
+
+    const xLabels = [
+      { x: padL, text: points[0][0], anchor: 'start' },
+      { x: padL + plotW / 2, text: points[Math.floor(points.length / 2)][0], anchor: 'middle' },
+      { x: width - padR, text: points[points.length - 1][0], anchor: 'end' },
+    ];
+    let xLabelHtml = '';
+    for (const lbl of xLabels) {
+      xLabelHtml += `<text x="${lbl.x.toFixed(1)}" y="${height - 10}" text-anchor="${lbl.anchor}" fill="var(--text-secondary)" font-size="11">${escapeHtml(lbl.text)}</text>`;
+    }
+
+    let circlesHtml = '';
+    for (let i = 0; i < points.length; i++) {
+      const cx = xOf(times[i]).toFixed(1);
+      const cy = yOf(prices[i]).toFixed(1);
+      circlesHtml += `<circle cx="${cx}" cy="${cy}" r="3.5" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="1.5"><title>${escapeHtml(points[i][0])}: ${escapeHtml(formatPrice(prices[i]))}</title></circle>`;
+    }
+
+    return `
+      <svg class="history-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Árelőzmény grafikon">
+        <defs>
+          <linearGradient id="historyAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28" />
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02" />
+          </linearGradient>
+        </defs>
+        ${gridHtml}
+        <path d="${areaPath}" fill="url(#historyAreaGrad)" />
+        <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2.25" stroke-linejoin="round" />
+        ${circlesHtml}
+        ${xLabelHtml}
+      </svg>
+    `;
+  }
+
+  async function openHistoryModal(itemId) {
+    if (!dom.historyModal) return;
+    const item = state.itemById.get(itemId);
+    if (!item) return;
+
+    state.activeHistoryId = itemId;
+    const unitPart = item.unit ? ` • ${item.unit}` : '';
+    const unitPricePart = formatUnitPrice(item.price, item.unit);
+    dom.historyModalTitle.textContent = item.name;
+    dom.historyModalSubtitle.textContent = `${item.category}${unitPart}${unitPricePart ? ` • ${unitPricePart}` : ''}`;
+    dom.historyStats.innerHTML = '';
+    dom.historyChartWrap.innerHTML = '<p class="history-chart-note">Árelőzmények betöltése...</p>';
+    dom.historyTableBody.textContent = '';
+    dom.historyModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    const historyMap = await ensurePriceHistoryLoaded();
+    if (state.activeHistoryId !== itemId) return;
+
+    let points = Array.isArray(historyMap[itemId]) ? historyMap[itemId].slice() : [];
+    if (!points.length && item.valid_from) {
+      points = [[item.valid_from, item.price]];
+    } else if (points.length && points[points.length - 1][1] !== item.price && item.valid_from) {
+      points.push([item.valid_from, item.price]);
+    }
+
+    const firstPt = points[0];
+    const lastPt = points[points.length - 1];
+    const totalDiff = firstPt && lastPt ? lastPt[1] - firstPt[1] : 0;
+    const totalPct = firstPt && firstPt[1] > 0 ? (totalDiff / firstPt[1]) * 100 : 0;
+    const diffClass = totalDiff > 0 ? 'is-up' : totalDiff < 0 ? 'is-down' : '';
+    const diffSign = totalDiff > 0 ? '+' : '';
+    const pctStr = `${totalDiff > 0 ? '+' : ''}${huDecimal.format(totalPct)}%`;
+
+    dom.historyStats.innerHTML = `
+      <div class="history-stat">
+        <span class="history-stat-label">Aktuális ár</span>
+        <span class="history-stat-value">${escapeHtml(formatPrice(item.price))}</span>
+      </div>
+      <div class="history-stat">
+        <span class="history-stat-label">Első ár (${escapeHtml(firstPt ? firstPt[0] : '—')})</span>
+        <span class="history-stat-value">${escapeHtml(firstPt ? formatPrice(firstPt[1]) : '—')}</span>
+      </div>
+      <div class="history-stat">
+        <span class="history-stat-label">Összes változás</span>
+        <span class="history-stat-value ${diffClass}">${escapeHtml(points.length >= 2 ? `${diffSign}${huNumber.format(totalDiff)} Ft (${pctStr})` : '—')}</span>
+      </div>
+      <div class="history-stat">
+        <span class="history-stat-label">Rögzített árpontok</span>
+        <span class="history-stat-value">${escapeHtml(huNumber.format(points.length))} db</span>
+      </div>
+    `;
+
+    dom.historyChartWrap.innerHTML = renderHistoryChartSvg(points);
+
+    const rowsHtml = [];
+    for (let i = points.length - 1; i >= 0; i--) {
+      const [dt, pr] = points[i];
+      let diffHtml = '<span class="history-diff-neutral">Kezdőár</span>';
+      if (i > 0) {
+        const prevPr = points[i - 1][1];
+        const delta = pr - prevPr;
+        const pct = prevPr > 0 ? (delta / prevPr) * 100 : 0;
+        if (delta > 0) {
+          diffHtml = `<span class="history-diff-up">+${escapeHtml(huNumber.format(delta))} Ft (+${escapeHtml(huDecimal.format(pct))}%)</span>`;
+        } else if (delta < 0) {
+          diffHtml = `<span class="history-diff-down">${escapeHtml(huNumber.format(delta))} Ft (${escapeHtml(huDecimal.format(pct))}%)</span>`;
+        } else {
+          diffHtml = '<span class="history-diff-neutral">0 Ft</span>';
+        }
+      }
+      rowsHtml.push(`
+        <tr>
+          <td>${escapeHtml(dt)}</td>
+          <td><strong>${escapeHtml(formatPrice(pr))}</strong></td>
+          <td>${diffHtml}</td>
+        </tr>
+      `);
+    }
+    dom.historyTableBody.innerHTML = rowsHtml.join('');
+    dom.historyModalClose.focus();
+  }
+
+  function closeHistoryModal() {
+    if (!dom.historyModal || dom.historyModal.hidden) return;
+    dom.historyModal.hidden = true;
+    state.activeHistoryId = null;
+    document.body.style.overflow = '';
   }
 
   function buildCategoryChips() {
@@ -694,6 +1136,7 @@
       const items = normalizeDataset(data.items);
       state.items = items;
       state.itemIds = new Set(items.map((item) => item.id));
+      state.itemById = new Map(items.map((item) => [item.id, item]));
       state.isLoaded = true;
 
       const meta = data.meta && typeof data.meta === 'object' ? data.meta : {};
@@ -806,6 +1249,52 @@
         state.query = dom.searchInput.value;
         applyFiltersAndRender(true);
       }, DEBOUNCE_MS);
+      if (state.recentTimer !== null) {
+        clearTimeout(state.recentTimer);
+      }
+      if (val.trim().length >= 2) {
+        state.recentTimer = setTimeout(() => {
+          state.recentTimer = null;
+          recordRecentSearch(dom.searchInput.value);
+        }, 1200);
+      }
+    });
+
+    if (dom.quickSearchBar) {
+      dom.quickSearchBar.addEventListener('click', (event) => {
+        const chip = event.target.closest('.quick-chip[data-quick-query]');
+        if (!chip) return;
+        applyQuickQuery(chip.dataset.quickQuery);
+      });
+    }
+
+    if (dom.clearRecentBtn) {
+      dom.clearRecentBtn.addEventListener('click', () => {
+        state.recentSearches = [];
+        saveRecentSearches([]);
+        renderRecentSearches();
+      });
+    }
+
+    if (dom.shareLinkBtn) {
+      dom.shareLinkBtn.addEventListener('click', () => {
+        copyShareUrl();
+      });
+    }
+
+    if (dom.historyModal) {
+      dom.historyModal.addEventListener('click', (event) => {
+        if (event.target.closest('[data-close-history="true"]') || event.target.closest('#history-modal-close')) {
+          closeHistoryModal();
+        }
+      });
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && dom.historyModal && !dom.historyModal.hidden) {
+        event.preventDefault();
+        closeHistoryModal();
+      }
     });
 
     dom.searchInput.addEventListener('search', () => {
@@ -886,6 +1375,11 @@
     }
 
     dom.mainContent.addEventListener('click', (event) => {
+      const historyBtn = event.target.closest('.history-btn[data-history-id]');
+      if (historyBtn) {
+        openHistoryModal(historyBtn.dataset.historyId);
+        return;
+      }
       const favBtn = event.target.closest('.fav-btn[data-id]');
       if (!favBtn) return;
       toggleFavoriteById(favBtn.dataset.id);
@@ -914,6 +1408,8 @@
   function init() {
     applyTheme(state.theme);
     syncViewButtons();
+    readStateFromUrl();
+    renderRecentSearches();
     bindEvents();
     loadPrices();
   }

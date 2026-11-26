@@ -686,3 +686,52 @@ def test_repo_data_prices_json_schema_if_present() -> None:
             assert item["price_diff"] == item["price"] - item["previous_price"]
         if item["changed_at"] is not None:
             assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", item["changed_at"])
+
+
+def test_find_history_xlsx_url() -> None:
+    html = """
+    <html><body>
+      <a href="/downloads/dohany/arkozzetetel/alkalmazando_dohanygyartmany_kiskereskedelmi_eladasi_arak_20261125120001.xlsx">Aktív</a>
+      <a href="/downloads/dohany/arkozzetetel/kiskereskedelmi_eladasi_ar_valtozassal_erintett_20261125120001.xlsx">Változás</a>
+      <a href="/downloads/dohany/arkozzetetel/2017_januar_1-jet_kovetoen_alkalmazott_dohanygyartmany_kiskereskedelmi_eladasi_arak_listaja_20261125120001.xlsx">2017+ lista</a>
+    </body></html>
+    """
+    found = up.find_history_xlsx_url(html, up.SZTFH_PAGE_URL)
+    assert found is not None
+    assert "2017_januar_1-jet_kovetoen" in found
+    assert up.find_history_xlsx_url("<html><body><a href='/a.xlsx'>Only active</a></body></html>", up.SZTFH_PAGE_URL) is None
+
+
+def test_parse_history_workbook_dedupes_and_filters() -> None:
+    wb_bytes = _make_xlsx_bytes([
+        ["2017+ lista"],
+        ["Termék típus", "Termék megnevezése", "Mennyiség", "Mennyiségi egység", "Kiskereskedelmi eladási ár", "Érvényesség kezdete"],
+        ["Cigaretta", "Marlboro  Red", 20, "szál", 1200, "2018-01-01"],
+        ["Cigaretta", "Marlboro Red", 20, "szál", 1200, "2018-06-01"],  # same consecutive price -> compacted
+        ["Cigaretta", "Marlboro Red", 20, "szál", 1500, "2020-01-01"],
+        ["Cigaretta", "Marlboro Red", 20, "szál", 2300, "2025-05-01"],
+        ["Cigaretta", "Inactive Brand", 20, "szál", 900, "2019-01-01"],
+    ])
+    marlboro_id = up.compute_item_id("Marlboro Red", "20 szál")
+    hist = up.parse_history_workbook(wb_bytes, active_ids={marlboro_id})
+    assert list(hist.keys()) == [marlboro_id]
+    assert hist[marlboro_id] == [
+        ["2018-01-01", 1200],
+        ["2020-01-01", 1500],
+        ["2025-05-01", 2300],
+    ]
+
+
+def test_repo_price_history_json_schema_if_present() -> None:
+    history_path = REPO_ROOT / "data" / "price_history.json"
+    if not history_path.exists():
+        pytest.skip("data/price_history.json not generated yet")
+    data = json.loads(history_path.read_text(encoding="utf-8"))
+    assert isinstance(data, dict) and len(data) > 0
+    sample_id, points = next(iter(data.items()))
+    assert re.fullmatch(r"[0-9a-f]{16}", sample_id)
+    assert isinstance(points, list) and len(points) >= 1
+    for pt in points:
+        assert isinstance(pt, list) and len(pt) == 2
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", pt[0])
+        assert type(pt[1]) is int and pt[1] > 0

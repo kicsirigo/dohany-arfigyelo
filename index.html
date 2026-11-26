@@ -72,6 +72,28 @@
   </section>
 
   <section id="filters-section" class="filters-section container" aria-label="Szűrők és rendezés">
+    <div id="quick-search-bar" class="quick-search-bar" aria-label="Gyorskeresés">
+      <div id="recent-searches-group" class="quick-group" hidden>
+        <span class="quick-label">Legutóbbi:</span>
+        <div id="recent-searches-list" class="quick-chips"></div>
+        <button type="button" id="clear-recent-btn" class="quick-clear-btn" aria-label="Előzmények törlése" title="Előzmények törlése">&times;</button>
+      </div>
+      <div class="quick-group">
+        <span class="quick-label">Népszerű:</span>
+        <div id="popular-brands-list" class="quick-chips">
+          <button type="button" class="quick-chip" data-quick-query="Marlboro">Marlboro</button>
+          <button type="button" class="quick-chip" data-quick-query="TEREA">TEREA</button>
+          <button type="button" class="quick-chip" data-quick-query="HEETS">HEETS</button>
+          <button type="button" class="quick-chip" data-quick-query="LEVIA">LEVIA</button>
+          <button type="button" class="quick-chip" data-quick-query="VELO">VELO</button>
+          <button type="button" class="quick-chip" data-quick-query="ZYN">ZYN</button>
+          <button type="button" class="quick-chip" data-quick-query="Dunhill">Dunhill</button>
+          <button type="button" class="quick-chip" data-quick-query="Camel">Camel</button>
+          <button type="button" class="quick-chip" data-quick-query="Winston">Winston</button>
+        </div>
+      </div>
+    </div>
+
     <div id="category-chips" class="category-chips" role="tablist" aria-label="Kategóriák">
       <button type="button" class="chip is-active" data-category="all" role="tab" aria-selected="true">Összes</button>
     </div>
@@ -88,6 +110,10 @@
 
       <div class="toolbar-actions">
         <div id="result-counter" class="result-counter" aria-live="polite">0 / 0 termék</div>
+        <button type="button" id="share-link-btn" class="share-btn" aria-label="Keresési link másolása" title="Aktuális szűrés linkjének másolása">
+          <span aria-hidden="true">🔗</span>
+          <span class="share-btn-label">Megosztás</span>
+        </button>
         <label for="sort-select" class="sr-only">Rendezés</label>
         <select id="sort-select" class="sort-select" aria-label="Rendezés">
           <option value="name-asc">Név (A–Z)</option>
@@ -165,5 +191,34 @@
       </p>
     </div>
   </footer>
+
+  <div id="history-modal" class="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title" hidden>
+    <div class="history-modal-backdrop" data-close-history="true"></div>
+    <div class="history-modal-panel" role="document">
+      <div class="history-modal-header">
+        <div class="history-modal-heading">
+          <h2 id="history-modal-title" class="history-modal-title">Árelőzmény</h2>
+          <p id="history-modal-subtitle" class="history-modal-subtitle"></p>
+        </div>
+        <button type="button" id="history-modal-close" class="history-modal-close" aria-label="Bezárás">&times;</button>
+      </div>
+      <div id="history-modal-body" class="history-modal-body">
+        <div id="history-stats" class="history-stats"></div>
+        <div id="history-chart-wrap" class="history-chart-wrap"></div>
+        <div id="history-table-wrap" class="history-table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th scope="col">Érvényes ettől</th>
+                <th scope="col">Eladási ár</th>
+                <th scope="col">Változás</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
