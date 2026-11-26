@@ -349,7 +349,7 @@
     const badgesHtml = renderDiffBadgesMarkup(item);
     const prevPriceHtml = renderPrevPriceMarkup(item);
     const validFromHtml = item.valid_from
-      ? `<span class="valid-from">Érvényes: ${escapeHtml(item.valid_from)}</span>`
+      ? `<span class="valid-from">Utolsó árváltozás: ${escapeHtml(item.valid_from)}</span>`
       : '';
     const unitHtml = item.unit
       ? `<span class="product-unit">${escapeHtml(item.unit)}</span>`
