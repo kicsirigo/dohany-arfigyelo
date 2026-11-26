@@ -6,6 +6,19 @@ Statikus, keretrendszermentes webalkalmazás és automatizált **GitHub Actions*
 
 ---
 
+## Képernyőképek
+
+| Asztali nézet (keresés & egységár) | 2017–2026 Árelőzmény grafikon |
+| :---: | :---: |
+| ![Asztali nézet](docs/screenshot-desktop.png) | ![Árelőzmény grafikon](docs/screenshot-history.png) |
+
+<p align="center">
+  <strong>Mobil nézet</strong><br />
+  <img src="docs/screenshot-mobile.png" alt="Mobil nézet" width="320" />
+</p>
+
+---
+
 ## Főbb funkciók
 
 - **Nemzeti Dohánybolt inspirálta arculat:** Dohánybarna és arany színséma, `Oswald` és `Barlow` (`latin-ext`) tipográfia, `tabular-nums` árcédula-formázás, valamint `localStorage`-ban tárolt sötét/világos témaváltó.
