@@ -55,9 +55,9 @@ class _FakeResponse:
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
-            import requests
+            from urllib.error import HTTPError
 
-            raise requests.HTTPError(f"HTTP {self.status_code}")
+            raise HTTPError("", self.status_code, f"HTTP {self.status_code}", {}, None)
 
 
 class _FakeSession:
@@ -145,10 +145,10 @@ def test_fetch_sends_custom_user_agent_and_raises_on_403(tmp_path: Path) -> None
         assert hdrs["User-Agent"] == up.DEFAULT_USER_AGENT
 
     # Verify non-2xx raises HTTPError
-    import requests
+    from urllib.error import HTTPError
 
     bad_session = _FakeSession({page_url: _FakeResponse(status_code=403)}, require_custom_ua=False)
-    with pytest.raises(requests.HTTPError):
+    with pytest.raises(HTTPError):
         up.update_prices(page_url=page_url, output_path=out, session=bad_session)
 
 

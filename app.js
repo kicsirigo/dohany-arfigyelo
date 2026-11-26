@@ -36,23 +36,20 @@
   });
   const desktopMq = window.matchMedia('(min-width: 1025px)');
 
-  const memoryStorage = new Map();
-
   function readStorage(key, fallback) {
     try {
       const value = window.localStorage.getItem(key);
       return value !== null ? value : fallback;
     } catch (_) {
-      return memoryStorage.has(key) ? memoryStorage.get(key) : fallback;
+      return fallback;
     }
   }
 
   function writeStorage(key, value) {
-    memoryStorage.set(key, value);
     try {
       window.localStorage.setItem(key, value);
     } catch (_) {
-      // Ignore SecurityError / QuotaExceededError in restricted environments
+      // Ignore storage quota/privacy errors
     }
   }
 
@@ -120,111 +117,55 @@
       .replace(/'/g, '&#39;');
   }
 
-  function normalizeWithMap(str) {
-    const text = String(str || '');
-    let norm = '';
-    const map = [];
-    let i = 0;
-
-    while (i < text.length) {
-      const cp = text.codePointAt(i);
-      const charLen = cp > 0xffff ? 2 : 1;
-      const slice = text.slice(i, i + charLen);
-      const stripped = slice.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-
-      if (!stripped) {
-        if (map.length > 0) {
-          map[map.length - 1].end = i + charLen;
-        }
-      } else {
-        let j = 0;
-        while (j < stripped.length) {
-          const ncp = stripped.codePointAt(j);
-          const nLen = ncp > 0xffff ? 2 : 1;
-          norm += stripped.slice(j, j + nLen);
-          map.push({ start: i, end: i + charLen });
-          j += nLen;
-        }
-      }
-
-      i += charLen;
-    }
-
-    return { text, norm, map };
-  }
-
   function normalizeText(str) {
-    return String(str || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
+    return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   }
 
   function tokenizeQuery(query) {
-    const raw = normalizeText(query).trim().split(/\s+/).filter(Boolean);
-    if (raw.length <= 1) return raw;
-    const seen = new Set();
-    const deduped = [];
-    for (const tok of raw) {
-      if (!seen.has(tok)) {
-        seen.add(tok);
-        deduped.push(tok);
-      }
-    }
-    return deduped;
+    return Array.from(new Set(normalizeText(query).trim().split(/\s+/).filter(Boolean)));
   }
 
   function highlightNameHtml(originalName, queryTokens) {
-    const { text, norm, map } = normalizeWithMap(originalName);
-    if (!queryTokens.length || !text) {
-      return escapeHtml(text);
+    const text = String(originalName || '');
+    if (!queryTokens.length || !text) return escapeHtml(text);
+
+    let norm = '';
+    const map = [];
+    for (let i = 0; i < text.length; i++) {
+      const base = text[i].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      for (let j = 0; j < base.length; j++) {
+        norm += base[j];
+        map.push(i);
+      }
     }
 
     const ranges = [];
     for (const tok of queryTokens) {
       if (!tok || tok.length > norm.length) continue;
       let pos = 0;
-      while (pos <= norm.length - tok.length) {
-        const idx = norm.indexOf(tok, pos);
-        if (idx === -1) break;
-        const start = map[idx].start;
-        const end = map[idx + tok.length - 1].end;
-        ranges.push([start, end]);
-        pos = idx + 1;
+      while ((pos = norm.indexOf(tok, pos)) !== -1) {
+        ranges.push([map[pos], map[pos + tok.length - 1] + 1]);
+        pos += 1;
       }
     }
-
-    if (!ranges.length) {
-      return escapeHtml(text);
-    }
+    if (!ranges.length) return escapeHtml(text);
 
     ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const merged = [ranges[0].slice()];
-    for (let idx = 1; idx < ranges.length; idx++) {
+    const merged = [ranges[0]];
+    for (let i = 1; i < ranges.length; i++) {
       const prev = merged[merged.length - 1];
-      const cur = ranges[idx];
-      if (cur[0] <= prev[1]) {
-        if (cur[1] > prev[1]) {
-          prev[1] = cur[1];
-        }
-      } else {
-        merged.push(cur.slice());
-      }
+      if (ranges[i][0] <= prev[1]) prev[1] = Math.max(prev[1], ranges[i][1]);
+      else merged.push(ranges[i]);
     }
 
     let html = '';
     let cursor = 0;
     for (const [start, end] of merged) {
-      if (start > cursor) {
-        html += escapeHtml(text.slice(cursor, start));
-      }
+      if (start > cursor) html += escapeHtml(text.slice(cursor, start));
       html += `<mark class="search-mark">${escapeHtml(text.slice(start, end))}</mark>`;
       cursor = end;
     }
-    if (cursor < text.length) {
-      html += escapeHtml(text.slice(cursor));
-    }
-    return html;
+    return cursor < text.length ? html + escapeHtml(text.slice(cursor)) : html;
   }
 
   function formatTimestamp(value) {
@@ -402,62 +343,44 @@
     return '';
   }
 
+  function renderFavButtonMarkup(item, isFav) {
+    const label = isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez';
+    return `<button type="button" class="fav-btn${isFav ? ' is-favorite' : ''}" data-id="${escapeHtml(item.id)}" aria-pressed="${isFav}" aria-label="${label}: ${escapeHtml(item.name)}" title="${label}">${isFav ? ICONS.starFilled : ICONS.starOutline}</button>`;
+  }
+
+  function renderHistoryButtonMarkup(item) {
+    return `<button type="button" class="history-btn" data-history-id="${escapeHtml(item.id)}" aria-label="Árelőzmény megtekintése: ${escapeHtml(item.name)}" title="Árelőzmény (2017–2026)">${ICONS.historyChart}</button>`;
+  }
+
   function createCardElement(item) {
     const isFav = state.favorites.has(item.id);
     const article = document.createElement('article');
     article.className = 'product-card';
     article.dataset.id = item.id;
 
-    const highlightedName = highlightNameHtml(item.name, state.queryTokens);
-    const badgesHtml = renderDiffBadgesMarkup(item);
-    const prevPriceHtml = renderPrevPriceMarkup(item);
     const unitPriceText = formatUnitPrice(item.price, item.unit);
-    const unitPriceHtml = unitPriceText
-      ? `<span class="unit-price">${escapeHtml(unitPriceText)}</span>`
-      : '';
-    const validFromHtml = item.valid_from
-      ? `<span class="valid-from">Utolsó árváltozás: ${escapeHtml(item.valid_from)}</span>`
-      : '';
-    const unitHtml = item.unit
-      ? `<span class="product-unit">${escapeHtml(item.unit)}</span>`
-      : '';
-
     article.innerHTML = `
       <div class="card-top">
         <div class="card-meta">
           <span class="product-category">${escapeHtml(item.category)}</span>
-          ${unitHtml}
+          ${item.unit ? `<span class="product-unit">${escapeHtml(item.unit)}</span>` : ''}
         </div>
         <div class="card-actions-inline">
-          <button
-            type="button"
-            class="history-btn"
-            data-history-id="${escapeHtml(item.id)}"
-            aria-label="Árelőzmény megtekintése: ${escapeHtml(item.name)}"
-            title="Árelőzmény (2017–2026)"
-          >${ICONS.historyChart}</button>
-          <button
-            type="button"
-            class="fav-btn${isFav ? ' is-favorite' : ''}"
-            data-id="${escapeHtml(item.id)}"
-            aria-pressed="${isFav ? 'true' : 'false'}"
-            aria-label="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}: ${escapeHtml(item.name)}"
-            title="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}"
-          >${isFav ? ICONS.starFilled : ICONS.starOutline}</button>
+          ${renderHistoryButtonMarkup(item)}
+          ${renderFavButtonMarkup(item, isFav)}
         </div>
       </div>
-      <h2 class="product-name">${highlightedName}</h2>
+      <h2 class="product-name">${highlightNameHtml(item.name, state.queryTokens)}</h2>
       <div class="card-bottom">
         <div class="card-pricing">
           <span class="product-price">${formatPrice(item.price)}</span>
-          ${unitPriceHtml}
-          ${prevPriceHtml}
-          ${badgesHtml}
+          ${unitPriceText ? `<span class="unit-price">${escapeHtml(unitPriceText)}</span>` : ''}
+          ${renderPrevPriceMarkup(item)}
+          ${renderDiffBadgesMarkup(item)}
         </div>
-        ${validFromHtml ? `<div class="card-validity">${validFromHtml}</div>` : ''}
+        ${item.valid_from ? `<div class="card-validity"><span class="valid-from">Utolsó árváltozás: ${escapeHtml(item.valid_from)}</span></div>` : ''}
       </div>
     `;
-
     return article;
   }
 
@@ -467,52 +390,29 @@
     tr.className = 'product-row';
     tr.dataset.id = item.id;
 
-    const highlightedName = highlightNameHtml(item.name, state.queryTokens);
-    const badgesHtml = renderDiffBadgesMarkup(item);
-    const prevPriceHtml = renderPrevPriceMarkup(item);
     const unitPriceText = formatUnitPrice(item.price, item.unit);
-    const tableUnitPriceHtml = unitPriceText
-      ? `<span class="table-unit-price">${escapeHtml(unitPriceText)}</span>`
-      : '';
-
     tr.innerHTML = `
-      <td class="cell-fav">
-        <button
-          type="button"
-          class="fav-btn${isFav ? ' is-favorite' : ''}"
-          data-id="${escapeHtml(item.id)}"
-          aria-pressed="${isFav ? 'true' : 'false'}"
-          aria-label="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}: ${escapeHtml(item.name)}"
-          title="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}"
-        >${isFav ? ICONS.starFilled : ICONS.starOutline}</button>
-      </td>
-      <td class="cell-name"><span class="table-product-name">${highlightedName}</span></td>
+      <td class="cell-fav">${renderFavButtonMarkup(item, isFav)}</td>
+      <td class="cell-name"><span class="table-product-name">${highlightNameHtml(item.name, state.queryTokens)}</span></td>
       <td class="cell-cat"><span class="product-category">${escapeHtml(item.category)}</span></td>
       <td class="cell-unit"><span class="product-unit">${escapeHtml(item.unit || '—')}</span></td>
       <td class="cell-price">
         <span class="table-price">${formatPrice(item.price)}</span>
-        ${tableUnitPriceHtml}
+        ${unitPriceText ? `<span class="table-unit-price">${escapeHtml(unitPriceText)}</span>` : ''}
       </td>
       <td class="cell-diff">
         <div class="cell-diff-wrap">
-          ${badgesHtml || '<span class="valid-from">—</span>'}
-          ${prevPriceHtml}
+          ${renderDiffBadgesMarkup(item) || '<span class="valid-from">—</span>'}
+          ${renderPrevPriceMarkup(item)}
         </div>
       </td>
       <td class="cell-valid">
         <div class="cell-valid-wrap">
           <span class="valid-from">${escapeHtml(item.valid_from || '—')}</span>
-          <button
-            type="button"
-            class="history-btn"
-            data-history-id="${escapeHtml(item.id)}"
-            aria-label="Árelőzmény megtekintése: ${escapeHtml(item.name)}"
-            title="Árelőzmény (2017–2026)"
-          >${ICONS.historyChart}</button>
+          ${renderHistoryButtonMarkup(item)}
         </div>
       </td>
     `;
-
     return tr;
   }
 
@@ -766,44 +666,19 @@
 
   async function copyShareUrl() {
     syncUrlWithState();
-    const url = window.location.href;
     let copied = false;
     try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(url);
-        copied = true;
-      }
+      await navigator.clipboard.writeText(window.location.href);
+      copied = true;
     } catch (_) {
       copied = false;
     }
 
-    if (!copied) {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        copied = document.execCommand('copy');
-        document.body.removeChild(ta);
-      } catch (_) {
-        copied = false;
-      }
-    }
-
     if (dom.shareLinkBtn) {
       const label = dom.shareLinkBtn.querySelector('.share-btn-label');
-      if (state.shareResetTimer !== null) {
-        clearTimeout(state.shareResetTimer);
-      }
-      if (copied) {
-        dom.shareLinkBtn.classList.add('is-copied');
-        if (label) label.textContent = 'Link másolva!';
-      } else if (label) {
-        label.textContent = 'Másolás sikertelen';
-      }
+      if (state.shareResetTimer !== null) clearTimeout(state.shareResetTimer);
+      dom.shareLinkBtn.classList.toggle('is-copied', copied);
+      if (label) label.textContent = copied ? 'Link másolva!' : 'Másolás sikertelen';
       state.shareResetTimer = setTimeout(() => {
         state.shareResetTimer = null;
         dom.shareLinkBtn.classList.remove('is-copied');
@@ -939,8 +814,9 @@
     dom.historyStats.innerHTML = '';
     dom.historyChartWrap.innerHTML = '<p class="history-chart-note">Árelőzmények betöltése...</p>';
     dom.historyTableBody.textContent = '';
-    dom.historyModal.hidden = false;
-    document.body.style.overflow = 'hidden';
+    if (!dom.historyModal.open) {
+      dom.historyModal.showModal();
+    }
 
     const historyMap = await ensurePriceHistoryLoaded();
     if (state.activeHistoryId !== itemId) return;
@@ -1010,10 +886,9 @@
   }
 
   function closeHistoryModal() {
-    if (!dom.historyModal || dom.historyModal.hidden) return;
-    dom.historyModal.hidden = true;
+    if (!dom.historyModal || !dom.historyModal.open) return;
+    dom.historyModal.close();
     state.activeHistoryId = null;
-    document.body.style.overflow = '';
   }
 
   function buildCategoryChips() {
@@ -1292,18 +1167,14 @@
 
     if (dom.historyModal) {
       dom.historyModal.addEventListener('click', (event) => {
-        if (event.target.closest('[data-close-history="true"]') || event.target.closest('#history-modal-close')) {
+        if (event.target === dom.historyModal || event.target.closest('#history-modal-close')) {
           closeHistoryModal();
         }
       });
+      dom.historyModal.addEventListener('close', () => {
+        state.activeHistoryId = null;
+      });
     }
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && dom.historyModal && !dom.historyModal.hidden) {
-        event.preventDefault();
-        closeHistoryModal();
-      }
-    });
 
     dom.searchInput.addEventListener('search', () => {
       const val = dom.searchInput.value;

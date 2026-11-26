@@ -1278,27 +1278,23 @@ mark,
    ========================================================================== */
 
 .history-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  width: min(680px, calc(100vw - 2rem));
+  max-width: 680px;
+  max-height: 88vh;
+  margin: auto;
+  overflow: visible;
 }
 
-.history-modal-backdrop {
-  position: absolute;
-  inset: 0;
+.history-modal::backdrop {
   background-color: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(3px);
 }
 
 .history-modal-panel {
-  position: relative;
-  z-index: 1;
   width: 100%;
-  max-width: 680px;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
