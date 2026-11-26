@@ -9,6 +9,14 @@
   const DEFAULT_CATEGORY = 'Egyéb';
   const VALID_SORTS = new Set(['name-asc', 'name-desc', 'price-asc', 'price-desc', 'changed-desc']);
 
+  const ICONS = {
+    sun: '<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>',
+    moon: '<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>',
+    starOutline: '<svg class="icon icon-star" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+    starFilled: '<svg class="icon icon-star" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+    historyChart: '<svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>',
+  };
+
   const STORAGE_KEYS = {
     theme: 'dohany_theme',
     favorites: 'dohany_favorites',
@@ -328,7 +336,7 @@
       dom.themeToggle.setAttribute('aria-pressed', String(isLight));
       const iconEl = dom.themeToggle.querySelector('.theme-icon');
       const labelEl = dom.themeToggle.querySelector('.theme-label');
-      if (iconEl) iconEl.textContent = isLight ? '☾' : '☀';
+      if (iconEl) iconEl.innerHTML = isLight ? ICONS.moon : ICONS.sun;
       if (labelEl) labelEl.textContent = isLight ? 'Sötét mód' : 'Világos mód';
     }
   }
@@ -427,7 +435,7 @@
             data-history-id="${escapeHtml(item.id)}"
             aria-label="Árelőzmény megtekintése: ${escapeHtml(item.name)}"
             title="Árelőzmény (2017–2026)"
-          >📈</button>
+          >${ICONS.historyChart}</button>
           <button
             type="button"
             class="fav-btn${isFav ? ' is-favorite' : ''}"
@@ -435,7 +443,7 @@
             aria-pressed="${isFav ? 'true' : 'false'}"
             aria-label="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}: ${escapeHtml(item.name)}"
             title="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}"
-          >${isFav ? '★' : '☆'}</button>
+          >${isFav ? ICONS.starFilled : ICONS.starOutline}</button>
         </div>
       </div>
       <h2 class="product-name">${highlightedName}</h2>
@@ -476,7 +484,7 @@
           aria-pressed="${isFav ? 'true' : 'false'}"
           aria-label="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}: ${escapeHtml(item.name)}"
           title="${isFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez'}"
-        >${isFav ? '★' : '☆'}</button>
+        >${isFav ? ICONS.starFilled : ICONS.starOutline}</button>
       </td>
       <td class="cell-name"><span class="table-product-name">${highlightedName}</span></td>
       <td class="cell-cat"><span class="product-category">${escapeHtml(item.category)}</span></td>
@@ -500,7 +508,7 @@
             data-history-id="${escapeHtml(item.id)}"
             aria-label="Árelőzmény megtekintése: ${escapeHtml(item.name)}"
             title="Árelőzmény (2017–2026)"
-          >📈</button>
+          >${ICONS.historyChart}</button>
         </div>
       </td>
     `;
@@ -570,7 +578,7 @@
       dom.paginationControls.hidden = true;
 
       if (state.onlyFavorites && getActiveFavoritesCount() === 0) {
-        dom.emptyMessage.textContent = 'Még nincs kedvenc terméked. Jelölj meg termékeket a ★ csillaggal!';
+        dom.emptyMessage.textContent = 'Még nincs kedvenc terméked. Jelölj meg termékeket a csillag ikonnal!';
       } else if (total === 0) {
         dom.emptyMessage.textContent = 'Az árlista jelenleg nem tartalmaz megjeleníthető terméket.';
       } else {
@@ -1222,7 +1230,7 @@
       if (btn.dataset.id === id) {
         btn.classList.toggle('is-favorite', isNowFav);
         btn.setAttribute('aria-pressed', isNowFav ? 'true' : 'false');
-        btn.textContent = isNowFav ? '★' : '☆';
+        btn.innerHTML = isNowFav ? ICONS.starFilled : ICONS.starOutline;
         const labelPrefix = isNowFav ? 'Eltávolítás a kedvencekből' : 'Hozzáadás a kedvencekhez';
         const item = state.items.find((entry) => entry.id === id);
         if (item) {

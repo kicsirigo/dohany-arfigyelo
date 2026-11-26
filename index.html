@@ -43,7 +43,9 @@
           <span class="status-item">Összesen: <strong id="meta-total-count" class="meta-count">—</strong></span>
         </div>
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Téma váltása" aria-pressed="false">
-          <span class="theme-icon" aria-hidden="true">☀</span>
+          <span class="theme-icon" aria-hidden="true">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+          </span>
           <span class="theme-label">Világos mód</span>
         </button>
       </div>
@@ -66,7 +68,9 @@
           autocomplete="off"
           spellcheck="false"
         />
-        <button type="button" id="search-clear" class="search-clear" aria-label="Keresés törlése" hidden>&times;</button>
+        <button type="button" id="search-clear" class="search-clear" aria-label="Keresés törlése" hidden>
+          <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
     </div>
   </section>
@@ -76,7 +80,9 @@
       <div id="recent-searches-group" class="quick-group" hidden>
         <span class="quick-label">Legutóbbi:</span>
         <div id="recent-searches-list" class="quick-chips"></div>
-        <button type="button" id="clear-recent-btn" class="quick-clear-btn" aria-label="Előzmények törlése" title="Előzmények törlése">&times;</button>
+        <button type="button" id="clear-recent-btn" class="quick-clear-btn" aria-label="Előzmények törlése" title="Előzmények törlése">
+          <svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
       <div class="quick-group">
         <span class="quick-label">Népszerű:</span>
@@ -101,7 +107,8 @@
     <div class="toolbar-row">
       <div class="toolbar-filters">
         <button type="button" id="favorites-toggle" class="toggle-pill toggle-favorites" aria-pressed="false">
-          <span aria-hidden="true">★</span> Kedvencek <span id="favorites-count" class="pill-count">0</span>
+          <svg class="icon icon-star" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          Kedvencek <span id="favorites-count" class="pill-count">0</span>
         </button>
         <button type="button" id="filter-changed" class="toggle-pill" aria-pressed="false">
           Csak árváltozások <span id="changed-count" class="pill-count">0</span>
@@ -111,7 +118,7 @@
       <div class="toolbar-actions">
         <div id="result-counter" class="result-counter" aria-live="polite">0 / 0 termék</div>
         <button type="button" id="share-link-btn" class="share-btn" aria-label="Keresési link másolása" title="Aktuális szűrés linkjének másolása">
-          <span aria-hidden="true">🔗</span>
+          <svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
           <span class="share-btn-label">Megosztás</span>
         </button>
         <label for="sort-select" class="sr-only">Rendezés</label>
@@ -178,7 +185,8 @@
     <div class="container footer-inner">
       <div class="footer-top">
         <a id="sztfh-source-link" class="footer-link" href="https://sztfh.hu/tevekenysegek/dohanyugyi-felugyelet/arak-kozzetetele/" target="_blank" rel="noopener noreferrer">
-          Hivatalos SZTFH adatforrás megnyitása ↗
+          Hivatalos SZTFH adatforrás megnyitása
+          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
         </a>
         <div class="footer-meta">
           <span class="footer-meta-item">Utolsó frissítés: <strong id="footer-last-updated" class="meta-date">—</strong></span>
@@ -200,7 +208,9 @@
           <h2 id="history-modal-title" class="history-modal-title">Árelőzmény</h2>
           <p id="history-modal-subtitle" class="history-modal-subtitle"></p>
         </div>
-        <button type="button" id="history-modal-close" class="history-modal-close" aria-label="Bezárás">&times;</button>
+        <button type="button" id="history-modal-close" class="history-modal-close" aria-label="Bezárás">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
       <div id="history-modal-body" class="history-modal-body">
         <div id="history-stats" class="history-stats"></div>

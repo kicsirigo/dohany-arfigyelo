@@ -1474,6 +1474,24 @@ mark,
   color: var(--text-secondary);
 }
 
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.theme-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 @media (min-width: 768px) {
   .quick-chips {
     flex-wrap: wrap;
