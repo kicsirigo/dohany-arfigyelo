@@ -104,6 +104,19 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  caret-color: transparent;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  caret-color: var(--accent);
+}
+
+button,
+.icon,
+svg {
+  user-select: none;
 }
 
 [hidden] {
